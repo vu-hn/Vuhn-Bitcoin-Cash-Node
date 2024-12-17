@@ -1,12 +1,12 @@
 // Copyright 2014 BitPay Inc.
-// Copyright (c) 2020-2021 The Bitcoin developers
+// Copyright (c) 2020-2024 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
-#include <cstring>
-#include <stdio.h>
 #include "univalue.h"
 #include "univalue_escapes.h"
+
+#include <string_view>
 
 /* static */
 void UniValue::jsonEscape(Stream & ss, std::string_view inS)
@@ -33,28 +33,20 @@ inline void UniValue::startNewLine(Stream & ss, const unsigned int prettyIndent,
 /* static */
 void UniValue::stringify(Stream& ss, const UniValue& value, const unsigned int prettyIndent, const unsigned int indentLevel)
 {
-    switch (value.typ) {
-    case VNULL:
-        ss << "null";
-        break;
-    case VFALSE:
-        ss << "false";
-        break;
-    case VTRUE:
-        ss << "true";
-        break;
-    case VOBJ:
-        stringify(ss, value.entries, prettyIndent, indentLevel);
-        break;
-    case VARR:
-        stringify(ss, value.values, prettyIndent, indentLevel);
-        break;
-    case VNUM:
-        ss << value.val;
-        break;
-    case VSTR:
-        stringify(ss, value.val, prettyIndent, indentLevel);
-        break;
+    using namespace std::string_view_literals;
+    Overloaded visitor{
+        [&](std::monostate) { ss << "null"sv; },
+        [&](bool b) { ss << (b ? "true"sv : "false"sv); },
+        [&](const Object &entries) { stringify(ss, entries, prettyIndent, indentLevel); },
+        [&](const Array &values) { stringify(ss, values, prettyIndent, indentLevel); },
+        [&](const Numeric &num) { ss << num.val; },
+        [&](const std::string &str) { stringify(ss, str, prettyIndent, indentLevel); },
+    };
+    if (!value.var.valueless_by_exception()) {
+        std::visit(std::move(visitor), value.var);
+    } else {
+        // should never happen but here just in case
+        visitor(std::monostate{});
     }
 }
 
@@ -103,7 +95,8 @@ void UniValue::stringify(Stream & ss, const UniValue::Array& array, const unsign
 }
 
 /* static */
-void UniValue::stringify(Stream& ss, std::string_view string, const unsigned int prettyIndent, const unsigned int indentLevel)
+void UniValue::stringify(Stream& ss, std::string_view string, const unsigned int prettyIndent [[maybe_unused]],
+                         const unsigned int indentLevel [[maybe_unused]])
 {
     ss.put('"');
     jsonEscape(ss, string);

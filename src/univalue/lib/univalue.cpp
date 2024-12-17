@@ -1,12 +1,13 @@
 // Copyright 2014 BitPay Inc.
 // Copyright 2015 Bitcoin Core Developers
-// Copyright (c) 2020-2021 The Bitcoin developers
+// Copyright (c) 2020-2024 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
 #define __STDC_FORMAT_MACROS 1
 
-#include <algorithm>
+#include "univalue.h"
+
 #include <array>
 #include <cinttypes>
 #include <cstdlib>
@@ -17,8 +18,6 @@
 #include <optional>
 #include <sstream>
 #include <stdexcept>
-
-#include "univalue.h"
 
 const UniValue NullUniValue;
 
@@ -142,52 +141,102 @@ const UniValue& UniValue::Array::back() const noexcept
     return NullUniValue;
 }
 
+void UniValue::setType(VType typ, std::optional<std::string> str) noexcept {
+    switch (typ) {
+        case VNULL: setNull(); break;
+        case VFALSE:
+        case VTRUE: *this = typ == VTRUE; break;
+        case VOBJ: setObject(); break;
+        case VARR: setArray(); break;
+        case VNUM:
+            if (str) var.emplace<Numeric>(std::move(*str));
+            else var.emplace<Numeric>();
+            break;
+        case VSTR:
+            if (str) var.emplace<std::string>(std::move(*str));
+            else var.emplace<std::string>();
+            break;
+    }
+}
+
+[[nodiscard]] UniValue::VType UniValue::getType() const noexcept {
+    Overloaded visitor{
+        [](std::monostate) { return VNULL; },
+        [](bool b) { return b ? VTRUE : VFALSE; },
+        [](const Numeric &) { return VNUM; },
+        [](const std::string &) { return VSTR; },
+        [](const Object &) { return VOBJ; },
+        [](const Array &) { return VARR; },
+    };
+    if (!var.valueless_by_exception()) {
+        return std::visit(std::move(visitor), var);
+    } else {
+        // should never happen but here just in case
+        return visitor(std::monostate{});
+    }
+}
+
+static const std::string NullString;
+
+[[nodiscard]] const std::string& UniValue::getValStr() const noexcept {
+    if (auto *n = std::get_if<Numeric>(&var)) {
+        return n->val;
+    } else if (auto *s = std::get_if<std::string>(&var)) {
+        return *s;
+    }
+    return NullString;
+}
+
 void UniValue::setNull() noexcept
 {
-    typ = VNULL;
-    val.clear();
-    entries.clear();
-    values.clear();
+    var.emplace<std::monostate>();
 }
 
 void UniValue::operator=(bool val_) noexcept
 {
-    setNull();
-    typ = val_ ? VTRUE : VFALSE;
+    var.emplace<bool>(val_);
 }
 
 UniValue::Object& UniValue::setObject() noexcept
 {
-    setNull();
-    typ = VOBJ;
-    return entries;
+    return var.emplace<Object>();
 }
 UniValue::Object& UniValue::operator=(const Object& object)
 {
-    setObject();
-    return entries = object;
+    if (auto *o = std::get_if<Object>(&var)) {
+        return *o = object;
+    } else {
+        return var.emplace<Object>(object);
+    }
 }
 UniValue::Object& UniValue::operator=(Object&& object) noexcept
 {
-    setObject();
-    return entries = std::move(object);
+    if (auto *o = std::get_if<Object>(&var)) {
+        return *o = std::move(object);
+    } else {
+        return var.emplace<Object>(std::move(object));
+    }
 }
 
 UniValue::Array& UniValue::setArray() noexcept
 {
-    setNull();
-    typ = VARR;
-    return values;
+    return var.emplace<Array>();
 }
 UniValue::Array& UniValue::operator=(const Array& array)
 {
-    setArray();
-    return values = array;
+    if (auto *a = std::get_if<Array>(&var)) {
+        return *a = array;
+    } else {
+        return var.emplace<Array>(array);
+    }
 }
 UniValue::Array& UniValue::operator=(Array&& array) noexcept
 {
-    setArray();
-    return values = std::move(array);
+    if (auto *a = std::get_if<Array>(&var)) {
+        return *a = std::move(array);
+    } else {
+        return var.emplace<Array>(std::move(array));
+    }
 }
 
 static std::optional<std::string> validateAndStripNumStr(const char* s)
@@ -203,9 +252,7 @@ static std::optional<std::string> validateAndStripNumStr(const char* s)
 void UniValue::setNumStr(const char* val_)
 {
     if (auto optStr = validateAndStripNumStr(val_)) {
-        setNull();
-        typ = VNUM;
-        val = std::move(*optStr);
+        var.emplace<Numeric>(std::move(*optStr));
     }
 }
 
@@ -224,8 +271,7 @@ void UniValue::setInt64(Int64 val_)
     int n = std::snprintf(buf.data(), size_t(bufSize), std::is_signed<Int64>::value ? "%" PRId64 : "%" PRIu64, val_);
     if (n <= 0 || n >= bufSize) // should never happen
         return;
-    typ = VNUM;
-    val.assign(buf.data(), std::string::size_type(n));
+    var.emplace<Numeric>(buf.data(), std::string::size_type(n));
 }
 
 void UniValue::operator=(short val_) { setInt64<int64_t>(val_); }
@@ -253,21 +299,16 @@ void UniValue::operator=(double val_)
     std::ostringstream oss;
     oss.imbue(std::locale::classic());
     oss << std::setprecision(16) << val_;
-    typ = VNUM;
-    val = oss.str();
+    var.emplace<Numeric>(std::move(oss).str());
 }
 
 std::string& UniValue::operator=(std::string_view val_)
 {
-    setNull();
-    typ = VSTR;
-    return val = val_;
+    return var.emplace<std::string>(val_);
 }
 std::string& UniValue::operator=(std::string&& val_) noexcept
 {
-    setNull();
-    typ = VSTR;
-    return val = std::move(val_);
+    return var.emplace<std::string>(std::move(val_));
 }
 
 const UniValue& UniValue::operator[](std::string_view key) const noexcept
@@ -280,109 +321,86 @@ const UniValue& UniValue::operator[](std::string_view key) const noexcept
 
 const UniValue& UniValue::operator[](size_type index) const noexcept
 {
-    switch (typ) {
-    case VOBJ:
-        return entries[index];
-    case VARR:
-        return values[index];
-    default:
-        return NullUniValue;
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->operator[](index);
+    } else if (auto *arr = std::get_if<Array>(&var)) {
+        return arr->operator[](index);
     }
+    return NullUniValue;
 }
 
 const UniValue& UniValue::front() const noexcept
 {
-    switch (typ) {
-    case VOBJ:
-        return entries.front();
-    case VARR:
-        return values.front();
-    default:
-        return NullUniValue;
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->front();
+    } else if (auto *arr = std::get_if<Array>(&var)) {
+        return arr->front();
     }
+    return NullUniValue;
 }
 
 const UniValue& UniValue::back() const noexcept
 {
-    switch (typ) {
-    case VOBJ:
-        return entries.back();
-    case VARR:
-        return values.back();
-    default:
-        return NullUniValue;
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->back();
+    } else if (auto *arr = std::get_if<Array>(&var)) {
+        return arr->back();
     }
+    return NullUniValue;
 }
 
 const UniValue* UniValue::locate(std::string_view key) const noexcept {
-    return entries.locate(key);
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->locate(key);
+    }
+    return nullptr;
 }
 UniValue* UniValue::locate(std::string_view key) noexcept {
-    return entries.locate(key);
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->locate(key);
+    }
+    return nullptr;
 }
 
 const UniValue& UniValue::at(std::string_view key) const {
-    if (typ == VOBJ) {
-        return entries.at(key);
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->at(key);
     }
-    throw std::domain_error(std::string("Cannot look up keys in JSON ") + uvTypeName(typ) +
+    throw std::domain_error(std::string("Cannot look up keys in JSON ") + uvTypeName(type()) +
                             ", expected object with key: " + std::string(key));
 }
 UniValue& UniValue::at(std::string_view key) {
-    if (typ == VOBJ) {
-        return entries.at(key);
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->at(key);
     }
-    throw std::domain_error(std::string("Cannot look up keys in JSON ") + uvTypeName(typ) +
+    throw std::domain_error(std::string("Cannot look up keys in JSON ") + uvTypeName(type()) +
                             ", expected object with key: " + std::string(key));
 }
 
 const UniValue& UniValue::at(size_type index) const
 {
-    switch (typ) {
-    case VOBJ:
-        return entries.at(index);
-    case VARR:
-        return values.at(index);
-    default:
-        throw std::domain_error(std::string("Cannot look up indices in JSON ") + uvTypeName(typ) +
-                                ", expected array or object larger than " + std::to_string(index) + " elements");
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->at(index);
+    } else if (auto *arr = std::get_if<Array>(&var)) {
+        return arr->at(index);
     }
+    throw std::domain_error(std::string("Cannot look up indices in JSON ") + uvTypeName(type()) +
+                            ", expected array or object larger than " + std::to_string(index) + " elements");
 }
 UniValue& UniValue::at(size_type index)
 {
-    switch (typ) {
-    case VOBJ:
-        return entries.at(index);
-    case VARR:
-        return values.at(index);
-    default:
-        throw std::domain_error(std::string("Cannot look up indices in JSON ") + uvTypeName(typ) +
-                                ", expected array or object larger than " + std::to_string(index) + " elements");
+    if (auto *obj = std::get_if<Object>(&var)) {
+        return obj->at(index);
+    } else if (auto *arr = std::get_if<Array>(&var)) {
+        return arr->at(index);
     }
+    throw std::domain_error(std::string("Cannot look up indices in JSON ") + uvTypeName(type()) +
+                            ", expected array or object larger than " + std::to_string(index) + " elements");
 }
 
 bool UniValue::operator==(const UniValue& other) const noexcept
 {
-    // Type must be equal.
-    if (typ != other.typ)
-        return false;
-    // Some types have additional requirements for equality.
-    switch (typ) {
-    case VOBJ:
-        return entries == other.entries;
-    case VARR:
-        return values == other.values;
-    case VNUM:
-    case VSTR:
-        return val == other.val;
-    case VNULL:
-    case VFALSE:
-    case VTRUE:
-        break;
-    }
-    // Returning true is the default behavior, but this is not included as a default statement inside the switch statement,
-    // so that the compiler warns if some type is not explicitly listed there.
-    return true;
+    return var == other.var; // rely on operator== for contained types.
 }
 
 const char *uvTypeName(UniValue::VType t) noexcept
