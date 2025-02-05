@@ -459,7 +459,8 @@ void SetupServerArgs() {
                  ArgsManager::ALLOW_BOOL, OptionsCategory::OPTIONS);
     gArgs.AddArg("-conf=<file>",
                  strprintf("Specify configuration file. Relative paths will be "
-                           "prefixed by datadir location. (default: %s)",
+                           "prefixed by datadir location (only useable from command line, not configuration file). "
+                           "(default: %s)",
                            BITCOIN_CONF_FILENAME),
                  ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-datadir=<dir>", "Specify data directory", ArgsManager::ALLOW_ANY,
