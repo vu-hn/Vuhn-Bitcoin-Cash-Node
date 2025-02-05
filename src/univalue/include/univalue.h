@@ -1,20 +1,20 @@
 // Copyright 2014 BitPay Inc.
 // Copyright 2015 Bitcoin Core Developers
-// Copyright (c) 2020-2021 The Bitcoin developers
+// Copyright (c) 2020-2024 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
-#ifndef __UNIVALUE_H__
-#define __UNIVALUE_H__
+#ifndef UNIVALUE_H__
+#define UNIVALUE_H__
 
-#include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 class UniValue {
@@ -484,20 +484,20 @@ public:
     static_assert(std::is_same<size_type, Array::size_type>::value,
                   "UniValue::size_type should be equal to both UniValue::Object::size_type and UniValue::Array::size_type.");
 
-    explicit UniValue(VType initialType = VNULL) noexcept : typ(initialType) {}
-    UniValue(VType initialType, std::string_view initialStr) : typ(initialType), val(initialStr) {}
-    UniValue(VType initialType, std::string&& initialStr) noexcept : typ(initialType), val(std::move(initialStr)) {}
-    UniValue(VType initialType, const char* initialStr) : typ(initialType), val(initialStr) {}
+    explicit UniValue(VType initialType = VNULL) noexcept { setType(initialType); }
+    UniValue(VType initialType, std::string_view initialStr) { setType(initialType, std::string{initialStr}); }
+    UniValue(VType initialType, std::string&& initialStr) noexcept { setType(initialType, std::move(initialStr)); }
+    UniValue(VType initialType, const char* initialStr) { setType(initialType, std::string{initialStr}); }
     explicit UniValue(const UniValue&) = default;
     UniValue(UniValue&&) noexcept = default;
     UniValue& operator=(const UniValue&) = default;
     UniValue& operator=(UniValue&&) noexcept = default;
 
-    UniValue(bool val_) noexcept : typ(val_ ? VTRUE : VFALSE) {}
-    explicit UniValue(const Object& object) : typ(VOBJ), entries(object) {}
-    UniValue(Object&& object) noexcept : typ(VOBJ), entries(std::move(object)) {}
-    explicit UniValue(const Array& array) : typ(VARR), values(array) {}
-    UniValue(Array&& array) noexcept : typ(VARR), values(std::move(array)) {}
+    UniValue(bool val_) noexcept : var(val_) {}
+    explicit UniValue(const Object& object) : var(std::in_place_type<Object>, object) {}
+    UniValue(Object&& object) noexcept : var(std::move(object)) {}
+    explicit UniValue(const Array& array) : var(std::in_place_type<Array>, array) {}
+    UniValue(Array&& array) noexcept : var(std::move(array)) {}
     UniValue(short val_) { *this = val_; }
     UniValue(int val_) { *this = val_; }
     UniValue(long val_) { *this = val_; }
@@ -507,9 +507,9 @@ public:
     UniValue(unsigned long val_) { *this = val_; }
     UniValue(unsigned long long val_) { *this = val_; }
     UniValue(double val_) { *this = val_; }
-    UniValue(std::string_view val_) : typ(VSTR), val(val_) {}
-    UniValue(std::string&& val_) noexcept : typ(VSTR), val(std::move(val_)) {}
-    UniValue(const char* val_) : typ(VSTR), val(val_) {}
+    UniValue(std::string_view val_) : var(std::in_place_type<std::string>, val_) {}
+    UniValue(std::string&& val_) noexcept : var(std::in_place_type<std::string>, std::move(val_)) {}
+    UniValue(const char* val_) : var(std::in_place_type<std::string>, val_) {}
 
     void setNull() noexcept;
     void operator=(bool val) noexcept;
@@ -534,9 +534,9 @@ public:
     std::string& operator=(const char* val_) { return *this = std::string_view(val_); }
 
     [[nodiscard]]
-    constexpr VType getType() const noexcept { return typ; }
+    VType getType() const noexcept;
     [[nodiscard]]
-    constexpr const std::string& getValStr() const noexcept { return val; }
+    const std::string& getValStr() const noexcept;
 
     /**
      * VOBJ/VARR: Returns whether the object/array is empty.
@@ -548,14 +548,9 @@ public:
      */
     [[nodiscard]]
     bool empty() const noexcept {
-        switch (typ) {
-        case VOBJ:
-            return entries.empty();
-        case VARR:
-            return values.empty();
-        default:
-            return true;
-        }
+        if (auto *obj = std::get_if<Object>(&var)) return obj->empty();
+        if (auto *arr = std::get_if<Array>(&var)) return arr->empty();
+        return true;
     }
 
     /**
@@ -568,18 +563,13 @@ public:
      */
     [[nodiscard]]
     size_type size() const noexcept {
-        switch (typ) {
-        case VOBJ:
-            return entries.size();
-        case VARR:
-            return values.size();
-        default:
-            return 0;
-        }
+        if (auto *obj = std::get_if<Object>(&var)) return obj->size();
+        if (auto *arr = std::get_if<Array>(&var)) return arr->size();
+        return 0;
     }
 
     [[nodiscard]]
-    constexpr bool getBool() const noexcept { return isTrue(); }
+    bool getBool() const noexcept { return isTrue(); }
 
     /**
      * VOBJ: Returns a reference to the first value associated with the key,
@@ -733,24 +723,24 @@ public:
      * This is a Bitcoin Cash Node extension of the UniValue API.
      */
     [[nodiscard]]
-    constexpr bool is(int types) const noexcept { return typ & types; }
+    bool is(int types) const noexcept { return getType() & types; }
 
     [[nodiscard]]
-    constexpr bool isNull() const noexcept { return is(VNULL); }
+    bool isNull() const noexcept { return is(VNULL); }
     [[nodiscard]]
-    constexpr bool isFalse() const noexcept { return is(VFALSE); }
+    bool isFalse() const noexcept { return is(VFALSE); }
     [[nodiscard]]
-    constexpr bool isTrue() const noexcept { return is(VTRUE); }
+    bool isTrue() const noexcept { return is(VTRUE); }
     [[nodiscard]]
-    constexpr bool isBool() const noexcept { return is(MBOOL); }
+    bool isBool() const noexcept { return is(MBOOL); }
     [[nodiscard]]
-    constexpr bool isObject() const noexcept { return is(VOBJ); }
+    bool isObject() const noexcept { return is(VOBJ); }
     [[nodiscard]]
-    constexpr bool isArray() const noexcept { return is(VARR); }
+    bool isArray() const noexcept { return is(VARR); }
     [[nodiscard]]
-    constexpr bool isNum() const noexcept { return is(VNUM); }
+    bool isNum() const noexcept { return is(VNUM); }
     [[nodiscard]]
-    constexpr bool isStr() const noexcept { return is(VSTR); }
+    bool isStr() const noexcept { return is(VSTR); }
 
     /**
      * Returns the JSON string representation of the provided value.
@@ -798,10 +788,23 @@ public:
     bool read(const std::string& raw);
 
 private:
-    UniValue::VType typ = VNULL;
-    std::string val;                       // numbers are stored as C++ strings
-    Object entries;
-    Array values;
+    // Numbers are stored as C++ strings
+    struct Numeric {
+        std::string val;
+        Numeric() noexcept = default;
+        template <typename ...Args> Numeric(Args && ...args) noexcept(std::is_nothrow_constructible_v<std::string, Args...>)
+            : val(std::forward<Args>(args)...) {}
+        bool operator==(const Numeric &o) const noexcept { return val == o.val; }
+        bool operator!=(const Numeric &o) const noexcept { return val != o.val; }
+    };
+
+    using Variant = std::variant<std::monostate,  // VNULL
+                                 bool,            // VFALSE or VTRUE
+                                 Object,          // VOBJ
+                                 Array,           // VARR
+                                 Numeric,         // VNUM
+                                 std::string>;    // VSTR
+    Variant var;
 
     // Opaque type used for writing. This can be further optimized later.
     struct Stream {
@@ -821,6 +824,19 @@ private:
     // Used internally by the integral operator=() overloads
     template<typename Int64>
     void setInt64(Int64 val);
+
+    void setType(VType typ, std::optional<std::string> str = std::nullopt) noexcept; // Used internally
+
+    //! Overloaded helper for std::visit. This helper and std::visit in general are
+    //! useful to write code that switches on a variant type. Unlike if/else-if and
+    //! switch/case statements, std::visit will trigger compile errors if there are
+    //! unhandled cases.
+    //!
+    //! Implementation comes from and example usage can be found at
+    //! https://en.cppreference.com/w/cpp/utility/variant/visit#Example
+    template<class... Ts> struct Overloaded : Ts... { using Ts::operator()...; };
+    //! Explicit deduction guide (not needed as of C++20)
+    template<class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 
 public:
     // Strict type-specific getters, these throw std::runtime_error if the
@@ -879,7 +895,7 @@ public:
     Array& get_array();
 
     [[nodiscard]]
-    constexpr VType type() const noexcept { return getType(); }
+    VType type() const noexcept { return getType(); }
 };
 
 enum jtokentype {
@@ -954,4 +970,4 @@ inline constexpr bool json_isspace(int ch) noexcept
 
 extern const UniValue NullUniValue;
 
-#endif // __UNIVALUE_H__
+#endif // UNIVALUE_H__

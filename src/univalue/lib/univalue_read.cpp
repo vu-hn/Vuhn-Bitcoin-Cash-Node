@@ -1,9 +1,12 @@
 // Copyright 2014 BitPay Inc.
-// Copyright (c) 2020-2021 The Bitcoin developers
+// Copyright (c) 2020-2024 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
 #include <optional>
+#include <stdexcept>
+#include <tuple>
+#include <utility>
 
 #include "univalue.h"
 #include "univalue_utffilter.h"
@@ -51,6 +54,13 @@ constexpr std::optional<unsigned> hatoui(const char*& buffer) noexcept
             return std::nullopt; // not a hex digit, fail
     }
     return val;
+}
+
+[[noreturn]]
+void throwBecauseTopNotObjectOrArray(const std::string &context, const UniValue &obj)
+{
+    throw std::logic_error("Unexpected state in UniValue::read (" + context + "): top object should be array"
+                           " or object, not: " + uvTypeName(obj.getType()));
 }
 
 } // end anonymous namespace
@@ -291,16 +301,19 @@ const char* UniValue::read(const char* buffer)
                 stack.push_back(this);
             } else {
                 UniValue *top = stack.back();
-                if (top->typ == VOBJ) {
-                    auto& value = top->entries.rbegin()->second;
+                if (auto *top_obj = std::get_if<Object>(&top->var)) {
+                    auto& value = top_obj->rbegin()->second;
                     if (utyp == VOBJ)
                         value.setObject();
                     else
                         value.setArray();
                     stack.push_back(&value);
+                } else if (auto *top_arr = std::get_if<Array>(&top->var)) {
+                    top_arr->emplace_back(utyp);
+                    stack.push_back(&*top_arr->rbegin());
                 } else {
-                    top->values.emplace_back(utyp);
-                    stack.push_back(&*top->values.rbegin());
+                    // this should never happen unless there is a bug; this is here for defensive programming purposes
+                    throwBecauseTopNotObjectOrArray("JTOK_*_OPEN", *top);
                 }
             }
 
@@ -378,12 +391,15 @@ const char* UniValue::read(const char* buffer)
             }
 
             UniValue *top = stack.back();
-            if (top->typ == VOBJ) {
-                top->entries.rbegin()->second = std::move(tmpVal);
+            if (auto *top_obj = std::get_if<Object>(&top->var)) {
+                top_obj->rbegin()->second = std::move(tmpVal);
+            } else if (auto *top_arr = std::get_if<Array>(&top->var)) {
+                top_arr->emplace_back(std::move(tmpVal));
             } else {
-                top->values.emplace_back(std::move(tmpVal));
+                // this should never happen unless there is a bug; this is here for defensive programming purposes
+                throwBecauseTopNotObjectOrArray("JTOK_KW_*", *top);
             }
-
+            
             setExpect(NOT_VALUE);
             break;
             }
@@ -396,10 +412,13 @@ const char* UniValue::read(const char* buffer)
             }
 
             UniValue *top = stack.back();
-            if (top->typ == VOBJ) {
-                top->entries.rbegin()->second = std::move(tmpVal);
+            if (auto *top_obj = std::get_if<Object>(&top->var)) {
+                top_obj->rbegin()->second = std::move(tmpVal);
+            } else if (auto *top_arr = std::get_if<Array>(&top->var)) {
+                top_arr->emplace_back(std::move(tmpVal));
             } else {
-                top->values.emplace_back(std::move(tmpVal));
+                // this should never happen unless there is a bug; this is here for defensive programming purposes
+                throwBecauseTopNotObjectOrArray("JTOK_NUMBER", *top);
             }
 
             setExpect(NOT_VALUE);
@@ -409,9 +428,9 @@ const char* UniValue::read(const char* buffer)
         case JTOK_STRING: {
             if (expect(OBJ_NAME)) {
                 UniValue *top = stack.back();
-                top->entries.emplace_back(std::piecewise_construct,
-                                          std::forward_as_tuple(std::move(tokenVal)),
-                                          std::forward_as_tuple());
+                std::get<Object>(top->var).emplace_back(std::piecewise_construct,
+                                                        std::forward_as_tuple(std::move(tokenVal)),
+                                                        std::forward_as_tuple());
                 clearExpect(OBJ_NAME);
                 setExpect(COLON);
             } else {
@@ -421,10 +440,13 @@ const char* UniValue::read(const char* buffer)
                     break;
                 }
                 UniValue *top = stack.back();
-                if (top->typ == VOBJ) {
-                    top->entries.rbegin()->second = std::move(tmpVal);
+                if (auto *top_obj = std::get_if<Object>(&top->var)) {
+                    top_obj->rbegin()->second = std::move(tmpVal);
+                } else if (auto *top_arr = std::get_if<Array>(&top->var)) {
+                    top_arr->emplace_back(std::move(tmpVal));
                 } else {
-                    top->values.emplace_back(std::move(tmpVal));
+                    // this should never happen unless there is a bug; this is here for defensive programming purposes
+                    throwBecauseTopNotObjectOrArray("JTOK_STRING", *top);
                 }
             }
 

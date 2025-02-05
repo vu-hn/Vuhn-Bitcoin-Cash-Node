@@ -1,20 +1,19 @@
 // Copyright 2014 BitPay Inc.
 // Copyright 2015 Bitcoin Core Developers
-// Copyright (c) 2020 The Bitcoin developers
+// Copyright (c) 2020-2024 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
-#include <stdint.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
+#include "univalue.h"
+
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
 #include <stdexcept>
-#include <vector>
 #include <limits>
 #include <string>
 #include <sstream>        // .get_int64()
-
-#include "univalue.h"
 
 namespace
 {
@@ -33,7 +32,7 @@ bool ParseInt32(const std::string& str, int32_t *out) noexcept
 {
     if (!ParsePrechecks(str))
         return false;
-    char *endp = NULL;
+    char *endp = nullptr;
     errno = 0; // strtol will not set errno if valid
     long int n = strtol(str.c_str(), &endp, 10);
     if(out) *out = (int32_t)n;
@@ -49,7 +48,7 @@ bool ParseInt64(const std::string& str, int64_t *out) noexcept
 {
     if (!ParsePrechecks(str))
         return false;
-    char *endp = NULL;
+    char *endp = nullptr;
     errno = 0; // strtoll will not set errno if valid
     long long int n = strtoll(str.c_str(), &endp, 10);
     if(out) *out = (int64_t)n;
@@ -116,37 +115,37 @@ const std::string& UniValue::get_str() const
 {
     if (!isStr())
         throw std::runtime_error("JSON value is not a string as expected");
-    return val;
+    return std::get<std::string>(var);
 }
 std::string& UniValue::get_str()
 {
     if (!isStr())
         throw std::runtime_error("JSON value is not a string as expected");
-    return val;
+    return std::get<std::string>(var);
 }
 
 const UniValue::Object& UniValue::get_obj() const
 {
     if (!isObject())
         throw std::runtime_error("JSON value is not an object as expected");
-    return entries;
+    return std::get<Object>(var);
 }
 UniValue::Object& UniValue::get_obj()
 {
     if (!isObject())
         throw std::runtime_error("JSON value is not an object as expected");
-    return entries;
+    return std::get<Object>(var);
 }
 
 const UniValue::Array& UniValue::get_array() const
 {
     if (!isArray())
         throw std::runtime_error("JSON value is not an array as expected");
-    return values;
+    return std::get<Array>(var);
 }
 UniValue::Array& UniValue::get_array()
 {
     if (!isArray())
         throw std::runtime_error("JSON value is not an array as expected");
-    return values;
+    return std::get<Array>(var);
 }
