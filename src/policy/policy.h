@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2021-2023 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -70,7 +70,7 @@ static constexpr unsigned int DEFAULT_MAX_MEMPOOL_SIZE_PER_MB = 10;
  */
 static constexpr CFeeRate MEMPOOL_FULL_FEE_INCREMENT(1000 * SATOSHI);
 /**
- * Default for -bytespersigocheck.
+ * Default for -bytespersigcheck.
  */
 static constexpr unsigned int DEFAULT_BYTES_PER_SIGCHECK = 50;
 /**
