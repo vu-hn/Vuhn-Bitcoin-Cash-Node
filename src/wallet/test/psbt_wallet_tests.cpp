@@ -6,6 +6,7 @@
 #include <key_io.h>
 #include <policy/policy.h>
 #include <script/sign.h>
+#include <util/check.h>
 #include <util/strencodings.h>
 #include <wallet/psbtwallet.h>
 #include <wallet/test/wallet_test_fixture.h>
@@ -216,8 +217,13 @@ BOOST_AUTO_TEST_CASE(parse_hd_keypath) {
 
 BOOST_AUTO_TEST_CASE(psbt_serialize_default_constructed_throws) {
     PartiallySignedTransaction psbtx;
+
+    // Attempting ot serialize a default-constructed PSBT should throw
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     BOOST_CHECK_THROW(ss << psbtx, std::bad_optional_access);
+
+    // Attempting to "fill" a default-constructed PSBT should throw
+    BOOST_CHECK_THROW(FillPSBT(&m_wallet, psbtx, 0), NonFatalCheckError);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
