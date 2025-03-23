@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2022-2023 The Bitcoin developers
+# Copyright (c) 2022-2025 The Bitcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test RPC functions that support CashTokens."""
@@ -135,6 +135,9 @@ class CashTokenRPCTest(BitcoinTestFramework):
 
     def run_test(self):
         addrs = self.make_coins_for_each_node(5)
+
+        # Ensure that we can create a token with an explicit empty commitment
+        self.create_token_genesis_tx(self.nodes[0], addrs[1], 1, 1, nft=bytes.fromhex(""))
 
         # Mint a token, sending it to node 1's wallet
         tx = self.create_token_genesis_tx(self.nodes[0], addrs[1], 1, 123456, nft=bytes.fromhex("beeff00d"))

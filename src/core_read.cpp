@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2022 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -361,7 +361,7 @@ token::OutputData DecodeTokenDataUV(const UniValue &obj) {
 
         if ((val = o_nft.locate("commitment"))) { // optional, defaults to "empty"
             std::vector<uint8_t> vec;
-            if (!IsHex(val->get_str())
+            if (!(IsHex(val->get_str()) || val->get_str().empty())
                     || (vec = ParseHex(val->get_str())).size() > token::MAX_CONSENSUS_COMMITMENT_LENGTH) {
                 throw std::runtime_error("Invalid \"commitment\" in tokenData");
             }
