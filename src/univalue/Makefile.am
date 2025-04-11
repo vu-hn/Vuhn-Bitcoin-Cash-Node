@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I ../../build-aux/m4
 .INTERMEDIATE: $(GENBIN)
 
 include_HEADERS = include/univalue.h
-noinst_HEADERS = lib/univalue_escapes.h lib/univalue_utffilter.h
+noinst_HEADERS = lib/univalue_detail.h lib/univalue_escapes.h lib/univalue_utffilter.h
 
 lib_LTLIBRARIES = libunivalue.la
 
