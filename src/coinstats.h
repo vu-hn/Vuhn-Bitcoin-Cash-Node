@@ -56,7 +56,7 @@ struct CoinStatsBase {
     //! Total cumulative amount of coins lost due to unclaimed miner rewards up to and including this block
     Amount total_unspendables_unclaimed_rewards;
 
-    CoinStatsBase() noexcept = default;
+    CoinStatsBase() noexcept {}
 
     //! Adds `amount` to `this->nTotalAmount` (if valid). On overflow, invalidates `this->nTotalAmount`
     void safeAddToTotalAmount(const Amount &amount);
@@ -80,7 +80,7 @@ struct CoinStats : CoinStatsBase {
     //! Currently, will be non-monostate only for: CoinStatsHashType::ECMH and CoinStatsHashType::MUHASH.
     std::variant<std::monostate, MuHash3072, ECMultiSet> multiSet;
 
-    CoinStats() noexcept = default;
+    CoinStats() noexcept {}
     CoinStats(int block_height, const BlockHash &block_hash) noexcept
         : CoinStatsBase(block_height), hashBlock{block_hash} {}
 };
