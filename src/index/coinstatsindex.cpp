@@ -313,7 +313,7 @@ bool CoinStatsIndex::WriteBlock(const CBlock &block, const CBlockIndex *pindex) 
     // cache this for next call to WriteBlock()
     LOCK(m_cs_stats);
     if (!m_best_block_stats) {
-        m_best_block_stats = std::make_unique<BestBlockStats>(*stats);
+        m_best_block_stats = std::make_shared<BestBlockStats>(*stats);
     } else {
         *m_best_block_stats = *stats;
     }
