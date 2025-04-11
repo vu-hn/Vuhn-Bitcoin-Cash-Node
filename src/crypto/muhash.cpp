@@ -260,7 +260,7 @@ void Num3072::Divide(const Num3072& a) {
     if (this->IsOverflow()) this->FullReduce();
 }
 
-Num3072::Num3072(const unsigned char (&data)[BYTE_SIZE]) {
+Num3072::Num3072(const unsigned char (&data)[BYTE_SIZE]) noexcept {
     for (int i = 0; i < LIMBS; ++i) {
         if (sizeof(limb_t) == 4) {
             this->limbs[i] = ReadLE32(data + 4 * i);
