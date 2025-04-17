@@ -1,10 +1,10 @@
+#!/usr/bin/env python3
+# Copyright (c) 2018-2025 The Bitcoin developers
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 # Allow to easily build native executable.
 # Useful for cross compilation.
-
-# define how DEPFILEs are treated
-if(${CMAKE_VERSION} VERSION_GREATER "3.19")
-  cmake_policy(SET CMP0116 OLD)
-endif()
 
 if(NOT DEFINED __IS_NATIVE_BUILD)
 	# Check if we are in a native build or not.

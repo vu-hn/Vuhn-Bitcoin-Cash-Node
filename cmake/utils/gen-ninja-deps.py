@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2020-2025 The Bitcoin developers
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import subprocess
 import os
@@ -102,10 +105,12 @@ def extract_deps(workset):
         for d in target_deps.values():
             workset.update(t for t in d if t in all_targets and t not in deps)
 
+    inputs = set().union(*deps.values())
+
     # Extract build time dependencies.
     bt_targets = [t for t in deps if t in doto_targets]
     if len(bt_targets) == 0:
-        return deps
+        return inputs
 
     ndeps = subprocess.check_output(
         [ninja, '-t', 'deps'] + bt_targets,
@@ -118,7 +123,6 @@ def extract_deps(workset):
         if m == b' deps not found':
             continue
 
-        inputs = set()
         while True:
             i = lines.pop(0)
             if i == b'':
@@ -127,55 +131,22 @@ def extract_deps(workset):
             assert i[:4] == b'    '
             inputs.add(i[4:])
 
-        deps[t] = inputs
-
-    return deps
-
-
-base_dir = base_dir.encode()
-
-
-def rebase_deps(deps):
-    rebased = dict()
-    cache = dict()
-
-    def rebase(path):
-        if path in cache:
-            return cache[path]
-
-        abspath = os.path.abspath(path)
-        newpath = path if path == abspath else os.path.relpath(
-            abspath, base_dir)
-        cache[path] = newpath
-        return newpath
-
-    for t, s in deps.items():
-        rebased[rebase(t)] = set(rebase(d) for d in s)
-
-    return rebased
+    return inputs
 
 
 deps = extract_deps(set(targets))
-deps = rebase_deps(deps)
 
+# Make paths absolute
+deps = set(os.path.abspath(d) for d in deps)
 
-def dump(deps):
-    for t, d in deps.items():
-        if len(d) == 0:
-            continue
-
-        str = t.decode() + ": \\\n  "
-        str += " \\\n  ".join(sorted(map((lambda x: x.decode()), d)))
-
-        print(str)
-
+# extra_deps and base_target are relative to base_dir rather than build_dir
+os.chdir(base_dir)
+if extra_deps is not None:
+    deps.update(set(os.path.abspath(d).encode() for d in extra_deps))
+base_target = os.path.abspath(base_target)
 
 # Collapse everything under the base target.
-basedeps = set() if extra_deps is None else set(d.encode() for d in extra_deps)
-for d in deps.values():
-    basedeps.update(d)
-
-base_target = base_target.encode()
-basedeps.discard(base_target)
-
-dump({base_target: basedeps})
+deps.discard(base_target.encode())
+out_string = base_target + ": \\\n  "
+out_string += " \\\n  ".join(sorted(map((lambda x: x.decode()), deps)))
+print(out_string)
