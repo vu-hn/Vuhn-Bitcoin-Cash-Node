@@ -7,6 +7,7 @@
 #define __STDC_FORMAT_MACROS 1
 
 #include "univalue.h"
+#include "univalue_detail.h"
 
 #include <array>
 #include <cinttypes>
@@ -160,6 +161,7 @@ void UniValue::setType(VType typ, std::optional<std::string> str) noexcept {
 }
 
 [[nodiscard]] UniValue::VType UniValue::getType() const noexcept {
+    using univalue_detail::Overloaded;
     Overloaded visitor{
         [](std::monostate) { return VNULL; },
         [](bool b) { return b ? VTRUE : VFALSE; },

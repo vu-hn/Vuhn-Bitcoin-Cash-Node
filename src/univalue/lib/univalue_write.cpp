@@ -4,6 +4,7 @@
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
 #include "univalue.h"
+#include "univalue_detail.h"
 #include "univalue_escapes.h"
 
 #include <string_view>
@@ -34,6 +35,7 @@ inline void UniValue::startNewLine(Stream & ss, const unsigned int prettyIndent,
 void UniValue::stringify(Stream& ss, const UniValue& value, const unsigned int prettyIndent, const unsigned int indentLevel)
 {
     using namespace std::string_view_literals;
+    using univalue_detail::Overloaded;
     Overloaded visitor{
         [&](std::monostate) { ss << "null"sv; },
         [&](bool b) { ss << (b ? "true"sv : "false"sv); },

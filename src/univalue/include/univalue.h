@@ -827,17 +827,6 @@ private:
 
     void setType(VType typ, std::optional<std::string> str = std::nullopt) noexcept; // Used internally
 
-    //! Overloaded helper for std::visit. This helper and std::visit in general are
-    //! useful to write code that switches on a variant type. Unlike if/else-if and
-    //! switch/case statements, std::visit will trigger compile errors if there are
-    //! unhandled cases.
-    //!
-    //! Implementation comes from and example usage can be found at
-    //! https://en.cppreference.com/w/cpp/utility/variant/visit#Example
-    template<class... Ts> struct Overloaded : Ts... { using Ts::operator()...; };
-    //! Explicit deduction guide (not needed as of C++20)
-    template<class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
-
 public:
     // Strict type-specific getters, these throw std::runtime_error if the
     // value is of unexpected type
