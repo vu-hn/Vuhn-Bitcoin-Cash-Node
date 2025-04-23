@@ -26,7 +26,9 @@ class CoinStatsIndex final : public BaseIndex {
 
     Mutex m_cs_stats;
     struct BestBlockStats;
-    std::unique_ptr<BestBlockStats> m_best_block_stats GUARDED_BY(m_cs_stats) {nullptr};
+    // Note: We must use a shared_ptr here due to bugs in the GCC 8.3.0 compiler. Switch to unique_ptr when
+    // support for GCC 8.3.0 is dropped.
+    std::shared_ptr<BestBlockStats> m_best_block_stats GUARDED_BY(m_cs_stats) {nullptr};
 
 protected:
     bool WriteBlock(const CBlock &block, const CBlockIndex *pindex) override;
