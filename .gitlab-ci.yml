@@ -763,7 +763,7 @@ pages:
             - .cache/pip
     before_script:
         - pip3 install --break-system-packages wheel
-        - pip3 install --break-system-packages jinja2==3.0.0 mkdocs pymdown-extensions==10.2.1 mkdocs-material
+        - pip3 install --break-system-packages jinja2==3.1.6 mkdocs==1.6.1 pymdown-extensions==10.2.1 mkdocs-material==9.6.12
     script:
         - (cd build; ninja -t restat)
         - (cd build; ninja doc-html)
