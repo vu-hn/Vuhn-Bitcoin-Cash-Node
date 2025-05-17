@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2021 The Bitcoin Core developers
-// Copyright (c) 2017-2024 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -58,6 +58,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <ctime>
 #include <deque>
 #include <limits>
 #include <list>
@@ -2168,7 +2169,7 @@ static void UpdateTip(const Config &config, CBlockIndex *pindexNew)
         g_best_block_cv.notify_all();
     }
 
-    LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%ld "
+    LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%u "
               "date='%s' progress=%f cache=%.1fMiB(%utxo)\n",
               __func__, pindexNew->GetBlockHash().ToString(),
               pindexNew->nHeight, pindexNew->nVersion,
@@ -5843,14 +5844,13 @@ double GuessVerificationProgress(const ChainTxData &data,
         return 0.0;
     }
 
-    int64_t nNow = time(nullptr);
+    const int64_t nNow = std::time(nullptr);
 
     double fTxTotal;
-    if (pindex->GetChainTxCount() <= data.nTxCount) {
+    if (pindex->GetChainTxCount() <= static_cast<uint64_t>(data.nTxCount)) {
         fTxTotal = data.nTxCount + (nNow - data.nTime) * data.dTxRate;
     } else {
-        fTxTotal = pindex->GetChainTxCount() +
-                   (nNow - pindex->GetBlockTime()) * data.dTxRate;
+        fTxTotal = static_cast<int64_t>(pindex->GetChainTxCount()) + (nNow - pindex->GetBlockTime()) * data.dTxRate;
     }
 
     return pindex->GetChainTxCount() / fTxTotal;
