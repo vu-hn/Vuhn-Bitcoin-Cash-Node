@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2023 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -305,13 +305,16 @@ struct BlockHasher {
 };
 
 extern RecursiveMutex cs_main;
-typedef std::unordered_map<BlockHash, CBlockIndex *, BlockHasher> BlockMap;
+// Note that this codebase assumes CBlockIndex has stable pointers, which is the case with all std maps.
+// If we ever change this to a container without stable pointers, then we must use a std::unique_ptr<CBlockIndex> as the
+// mapped type here.
+using BlockMap = std::unordered_map<BlockHash, CBlockIndex, BlockHasher>;
 extern BlockMap &mapBlockIndex GUARDED_BY(cs_main);
 
 inline CBlockIndex *LookupBlockIndex(const BlockHash &hash) {
     AssertLockHeld(cs_main);
-    BlockMap::const_iterator it = mapBlockIndex.find(hash);
-    return it == mapBlockIndex.end() ? nullptr : it->second;
+    BlockMap::iterator it = mapBlockIndex.find(hash);
+    return it == mapBlockIndex.end() ? nullptr : &it->second;
 }
 
 arith_uint256 GetBlockProof(const CBlockIndex &block);
