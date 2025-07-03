@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2022 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,6 +9,7 @@
 #include <crypto/sha256.h>
 #include <pubkey.h>
 #include <script/script.h>
+#include <util/overloaded.h>
 #include <util/strencodings.h>
 #include <util/system.h>
 
@@ -223,46 +224,28 @@ bool ExtractDestinations(const CScript &scriptPubKey, txnouttype &typeRet,
     return true;
 }
 
-namespace {
-class CScriptVisitor : public boost::static_visitor<bool> {
-private:
-    CScript *script;
-
-public:
-    explicit CScriptVisitor(CScript *scriptin) { script = scriptin; }
-
-    bool operator()(const CNoDestination &) const {
-        script->clear();
-        return false;
-    }
-
-    bool operator()(const CKeyID &keyID) const {
-        script->clear();
-        *script << OP_DUP << OP_HASH160 << ToByteVector(keyID) << OP_EQUALVERIFY
-                << OP_CHECKSIG;
-        return true;
-    }
-
-    bool operator()(const ScriptID &scriptID) const {
-        script->clear();
-        if (scriptID.IsP2SH_20()) {
-            *script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
-        } else if (scriptID.IsP2SH_32()) {
-            *script << OP_HASH256 << ToByteVector(scriptID) << OP_EQUAL;
-        } else {
-            assert(!"Unexpected state in class ScriptID");
-            return false; // not reached
-        }
-        return true;
-    }
-};
-} // namespace
-
 CScript GetScriptForDestination(const CTxDestination &dest) {
-    CScript script;
-
-    boost::apply_visitor(CScriptVisitor(&script), dest);
-    return script;
+    return std::visit(
+        util::Overloaded{
+            [](const CNoDestination &) {
+                return CScript();
+            },
+            [](const CKeyID &keyID) {
+                return CScript() << OP_DUP << OP_HASH160 << ToByteVector(keyID) << OP_EQUALVERIFY << OP_CHECKSIG;
+            },
+            [](const ScriptID &scriptID) {
+                CScript script;
+                if (scriptID.IsP2SH_20()) {
+                    script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
+                } else if (scriptID.IsP2SH_32()) {
+                    script << OP_HASH256 << ToByteVector(scriptID) << OP_EQUAL;
+                } else {
+                    assert(!"Unexpected state in class ScriptID");
+                    // not reached
+                }
+                return script;
+            }
+        }, dest);
 }
 
 CScript GetScriptForRawPubKey(const CPubKey &pubKey) {
@@ -282,5 +265,5 @@ CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey> &keys) {
 }
 
 bool IsValidDestination(const CTxDestination &dest) {
-    return dest.which() != 0;
+    return !dest.valueless_by_exception() && !std::get_if<CNoDestination>(&dest);
 }
