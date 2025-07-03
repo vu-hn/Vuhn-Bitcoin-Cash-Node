@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2021 The Bitcoin Core developers
-// Copyright (c) 2017-2024 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -485,7 +485,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
                          bool *pfMissingInputs, int64_t nAcceptTime,
                          bool bypass_limits, const Amount nAbsurdFee,
                          std::vector<COutPoint> &coins_to_uncache,
-                         bool test_accept) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
+                         bool test_accept, uint64_t *pEntryId) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     AssertLockHeld(cs_main);
 
     const Consensus::Params &consensusParams =
@@ -500,6 +500,9 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
 
     if (pfMissingInputs) {
         *pfMissingInputs = false;
+    }
+    if (pEntryId) {
+        *pEntryId = 0;
     }
 
     // Coinbase is only valid in a block, not as a loose transaction.
@@ -785,7 +788,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
         }
 
         // Store transaction in memory.
-        pool.addUnchecked(std::move(entry));
+        const uint64_t entryId = pool.addUnchecked(std::move(entry));
 
         // Trim mempool and check if tx was trimmed.
         if (!bypass_limits) {
@@ -797,6 +800,9 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
             }
         }
 
+        if (pEntryId) {
+            *pEntryId = entryId;
+        }
     }
 
     GetMainSignals().TransactionAddedToMempool(ptx);
@@ -858,12 +864,12 @@ AcceptToMemoryPoolWithTime(const Config &config, CTxMemPool &pool,
                            CValidationState &state, const CTransactionRef &tx,
                            bool *pfMissingInputs, int64_t nAcceptTime,
                            bool bypass_limits, const Amount nAbsurdFee,
-                           bool test_accept) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
+                           bool test_accept, uint64_t *pEntryId) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     AssertLockHeld(cs_main);
     std::vector<COutPoint> coins_to_uncache;
     bool res = AcceptToMemoryPoolWorker(
         config, pool, state, tx, pfMissingInputs, nAcceptTime, bypass_limits,
-        nAbsurdFee, coins_to_uncache, test_accept);
+        nAbsurdFee, coins_to_uncache, test_accept, pEntryId);
     if (!res) {
         for (const COutPoint &outpoint : coins_to_uncache) {
             pcoinsTip->Uncache(outpoint);
@@ -881,10 +887,10 @@ AcceptToMemoryPoolWithTime(const Config &config, CTxMemPool &pool,
 bool AcceptToMemoryPool(const Config &config, CTxMemPool &pool,
                         CValidationState &state, const CTransactionRef &tx,
                         bool *pfMissingInputs, bool bypass_limits,
-                        const Amount nAbsurdFee, bool test_accept) {
+                        const Amount nAbsurdFee, bool test_accept, uint64_t *pEntryId) {
     return AcceptToMemoryPoolWithTime(config, pool, state, tx, pfMissingInputs,
                                       GetTime(), bypass_limits, nAbsurdFee,
-                                      test_accept);
+                                      test_accept, pEntryId);
 }
 
 /**
