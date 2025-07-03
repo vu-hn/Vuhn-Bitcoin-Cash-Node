@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2023 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -139,15 +139,14 @@ public:
     //! upon
     unsigned int nTx = 0;
 
+    //! Verification status of this block. See enum BlockStatus
+    BlockStatus nStatus = BlockStatus();
+
     //! (memory only) Number of transactions in the chain up to and including
     //! this block.
     //! This value will be non-zero only if and only if transactions for this
-    //! block and all its parents are available. Change to 64-bit type when
-    //! necessary; won't happen before 2030
-    unsigned int nChainTx = 0;
-
-    //! Verification status of this block. See enum BlockStatus
-    BlockStatus nStatus = BlockStatus();
+    //! block and all its parents are available.
+    uint64_t nChainTx = 0;
 
     //! block header
     int32_t nVersion = 0;
@@ -213,7 +212,7 @@ public:
     /**
      * Get the number of transaction in the chain so far.
      */
-    int64_t GetChainTxCount() const { return nChainTx; }
+    uint64_t GetChainTxCount() const { return nChainTx; }
 
     /**
      * Check whether this block's and all previous blocks' transactions have

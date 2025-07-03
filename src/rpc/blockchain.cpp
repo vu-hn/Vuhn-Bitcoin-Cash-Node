@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2021-2024 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -2097,7 +2097,8 @@ static UniValue getchaintxstats(const Config &config,
         pindex->GetAncestor(pindex->nHeight - blockcount);
     int nTimeDiff =
         pindex->GetMedianTimePast() - pindexPast->GetMedianTimePast();
-    int nTxDiff = pindex->GetChainTxCount() - pindexPast->GetChainTxCount();
+    const int64_t nTxDiff = static_cast<int64_t>(pindex->GetChainTxCount())
+                            - static_cast<int64_t>(pindexPast->GetChainTxCount());
 
     UniValue::Object ret;
     ret.reserve(blockcount > 0 ? nTimeDiff > 0 ? 7 : 6 : 4);
