@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <bit>
 #include <climits>
 #include <cstdint>
 #include <limits>
@@ -77,6 +78,9 @@ static_assert(static_cast<int>(0xffffffff) == -1, "Two's complement representati
 static_assert(std::numeric_limits<uintptr_t>::max() >= std::numeric_limits<uint64_t>::max(),
               "Minimum 64-bit platform is required to compile this codebase");
 
+// Assumption: Architecture is either big or little endian, not mixed endian or some other esoteric architecture.
+static_assert(((std::endian::native == std::endian::little) + (std::endian::native == std::endian::big)) == 1,
+              "Platform must be either big or little endian, but not both or neither");
 // Some important things we are NOT assuming (non-exhaustive list):
 // * We are NOT assuming a specific value for sizeof(std::size_t).
 // * We are NOT assuming a specific value for std::endian::native.
