@@ -1678,11 +1678,10 @@ static UniValue getchaintips(const Config &config,
     std::set<const CBlockIndex *> setOrphans;
     std::set<const CBlockIndex *> setPrevs;
 
-    for (const std::pair<const BlockHash, CBlockIndex *> &item :
-         mapBlockIndex) {
-        if (!::ChainActive().Contains(item.second)) {
-            setOrphans.insert(item.second);
-            setPrevs.insert(item.second->pprev);
+    for (const auto & [_, index] : mapBlockIndex) {
+        if (!::ChainActive().Contains(&index)) {
+            setOrphans.insert(&index);
+            setPrevs.insert(index.pprev);
         }
     }
 
@@ -1924,11 +1923,12 @@ UniValue parkblock(const Config &config, const JSONRPCRequest &request) {
     CBlockIndex *pblockindex;
     {
         LOCK(cs_main);
-        if (mapBlockIndex.count(hash) == 0) {
+        auto it = mapBlockIndex.find(hash);
+        if (it == mapBlockIndex.end()) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         }
 
-        pblockindex = mapBlockIndex[hash];
+        pblockindex = &it->second;
     }
     ParkBlock(config, state, pblockindex);
 
@@ -2002,11 +2002,12 @@ UniValue unparkblock(const Config &config, const JSONRPCRequest &request) {
 
     {
         LOCK(cs_main);
-        if (mapBlockIndex.count(hash) == 0) {
+        auto it = mapBlockIndex.find(hash);
+        if (it == mapBlockIndex.end()) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         }
 
-        CBlockIndex *pblockindex = mapBlockIndex[hash];
+        CBlockIndex *pblockindex = &it->second;
         UnparkBlockAndChildren(pblockindex);
     }
 
