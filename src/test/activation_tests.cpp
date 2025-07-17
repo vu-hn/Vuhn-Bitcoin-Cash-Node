@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 The Bitcoin developers
+// Copyright (c) 2019-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -21,6 +21,7 @@ static void SetMTP(std::array<CBlockIndex, 12> &blocks, int64_t mtp) {
 
     for (size_t i = 0; i < len; ++i) {
         blocks[i].nTime = mtp + (i - (len / 2));
+        blocks[i].ClearCachedMTPValue();
     }
 
     BOOST_CHECK_EQUAL(blocks.back().GetMedianTimePast(), mtp);
@@ -290,8 +291,10 @@ BOOST_AUTO_TEST_CASE(test_upgrade12_activation_block_tracking) {
 
     blocksFork[0].pprev = &blocks[6]; // fork at block 6 (1 past the activation block)
     blocksFork[0].nTime = blocksFork[0].pprev->nTime + 1;
+    blocksFork[0].ClearCachedMTPValue();
     for (size_t i = 1; i < blocksFork.size(); ++i) {
         blocksFork[i].nTime = blocksFork[i-1].nTime + 1;
+        blocksFork[i].ClearCachedMTPValue();
     }
 
     BOOST_CHECK(IsUpgrade12Enabled(params, &blocks.back()));

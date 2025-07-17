@@ -19,6 +19,7 @@
 #include <tinyformat.h>
 #include <uint256.h>
 
+#include <atomic>
 #include <ios>
 #include <string_view>
 #include <type_traits>
@@ -82,7 +83,6 @@ public:
         LOCK(cs_ablaState);
         ablaStateOpt = s;
     }
-
 };
 
 /**
@@ -151,7 +151,7 @@ public:
     //! block header
     int32_t nVersion = 0;
     uint256 hashMerkleRoot = uint256();
-    uint32_t nTime = 0;
+    uint32_t nTime = 0; ///< Note: Do not modify nTime once it is set; doing so will make cachedMTP for subsequent blocks be incorrect.
     uint32_t nBits = 0;
     uint32_t nNonce = 0;
 
@@ -165,6 +165,26 @@ public:
     //! (memory only) Maximum nTime in the chain up to and including this block.
     unsigned int nTimeMax = 0;
 
+private:
+    //! (memory only) The cached medium time past value, lazily calculated the first time GetMedianTimePast() is called.
+    //! Change this to 64-bit when changing nTime to be 64-bit in some future upgrade before the year ~2100 or so.
+    mutable class CachedMTP {
+        static constexpr uint32_t NoValue = 0xff'ff'ff'ffu;
+        std::atomic_uint32_t val = NoValue;
+    public:
+        CachedMTP() = default;
+        CachedMTP(const CachedMTP &o) : val(o.Get().value_or(NoValue)) {}
+
+        std::optional<uint32_t> Get() const {
+            if (const uint32_t ret = val.load(std::memory_order_acquire); ret != NoValue) { return ret; }
+            return std::nullopt;
+        }
+
+        void Set(uint32_t v) { val.store(v, std::memory_order_release); }
+        void Clear() { Set(NoValue); }
+    } cachedMTP;
+
+public:
     explicit CBlockIndex() = default;
 
     explicit CBlockIndex(const CBlockHeader &block) : CBlockIndex() {
@@ -234,22 +254,34 @@ public:
         return GetHeaderReceivedTime() - GetBlockTime();
     }
 
-    static constexpr int nMedianTimeSpan = 11;
+    static constexpr size_t nMedianTimeSpan = 11;
 
-    int64_t GetMedianTimePast() const {
-        int64_t pmedian[nMedianTimeSpan];
-        int64_t *pbegin = &pmedian[nMedianTimeSpan];
-        int64_t *pend = &pmedian[nMedianTimeSpan];
+private:
+    uint32_t CalculateMedianTimePast() const {
+        uint32_t pmedian[nMedianTimeSpan];
+        uint32_t *pbegin = &pmedian[nMedianTimeSpan];
+        uint32_t *pend = &pmedian[nMedianTimeSpan];
 
         const CBlockIndex *pindex = this;
-        for (int i = 0; i < nMedianTimeSpan && pindex;
-             i++, pindex = pindex->pprev) {
-            *(--pbegin) = pindex->GetBlockTime();
+        for (size_t i = 0; i < nMedianTimeSpan && pindex; ++i, pindex = pindex->pprev) {
+            *--pbegin = pindex->nTime;
         }
 
         std::sort(pbegin, pend);
         return pbegin[(pend - pbegin) / 2];
     }
+
+public:
+    int64_t GetMedianTimePast() const {
+        std::optional<uint32_t> ret = cachedMTP.Get();
+        if (!ret) {
+            ret = CalculateMedianTimePast();
+            cachedMTP.Set(*ret);
+        }
+        return static_cast<int64_t>(*ret);
+    }
+
+    void ClearCachedMTPValue() { cachedMTP.Clear(); }
 
     std::string ToString() const {
         return strprintf(
@@ -395,6 +427,9 @@ public:
             // old serialized data, indicate missing data.
             SER_READ(obj, obj.SetAblaStateOpt(std::nullopt));
         }
+
+        // clear the cachedMTP value (if any) when unserializing since it no longer would necessarily be correct
+        SER_READ(obj, obj.ClearCachedMTPValue());
     }
 
     BlockHash GetBlockHash() const {
