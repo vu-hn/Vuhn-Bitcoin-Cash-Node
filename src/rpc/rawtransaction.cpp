@@ -120,23 +120,21 @@ static void getrawtransaction_verbosity_2_helper(const Config &config, const CTr
             // much faster typically.
             CBlock block;
             CBlockUndo blockUndo;
+            bool isOnActiveChain = false;
             auto ReadBlockAndUndo = [&] {
                 LOCK(cs_main);
+                isOnActiveChain = ::ChainActive().Contains(blockindex);
                 return !IsBlockPruned(blockindex)
                         && ReadBlockFromDisk(block, blockindex->GetBlockPos(), params.GetConsensus())
                         && UndoReadFromDisk(blockUndo, blockindex);
             };
             if (ReadBlockAndUndo()) {
-                // Find the txn index in the block (needed to find the undo info), start from after coinbase
-                size_t blockTxPos = 1;
-                for (; blockTxPos < block.vtx.size(); ++blockTxPos) {
-                    if (block.vtx[blockTxPos]->GetId() == tx->GetId()) {
-                        break;
-                    }
-                }
-                if (blockTxPos < block.vtx.size()) {
+                // Find the txn index in the block (needed to find the undo info)
+                std::optional<size_t> txPos = FindTransactionInBlock(params.GetConsensus(), blockindex, block, tx->GetId(),
+                                                                     isOnActiveChain);
+                if (txPos.has_value() && *txPos > 0) {
                     usedUndo = true;
-                    const CTxUndo &txundo = blockUndo.vtxundo.at(blockTxPos - 1); // txundo is off-by-1 due to coinbase
+                    const CTxUndo &txundo = blockUndo.vtxundo.at(*txPos - 1); // txundo is off-by-1 due to coinbase
 
                     for (size_t vinIndex = 0u; vinIndex < tx->vin.size(); ++vinIndex) {
                         UpdateInputAndTallyFee(vinIndex, txundo.vprevout.at(vinIndex).GetTxOut());

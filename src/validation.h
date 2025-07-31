@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -346,6 +347,23 @@ void StopScriptCheckWorkerThreads();
  * or network)
  */
 bool IsInitialBlockDownload();
+
+/**
+ * Find a transaction with the given txid in a block.
+ * Precondition: `pindex` must be the block index of `block`, and `isOnActiveChain` must be accurate.
+ * Returns index of `txid` in the block if found or a nullopt if not found.
+ */
+std::optional<size_t>
+FindTransactionInBlock(const Consensus::Params &params, const CBlockIndex *pindex, const CBlock &block, const TxId &txid,
+                       bool isOnActiveChain);
+
+namespace internal {
+/**
+ *  This function is called internally by the more public `FindTransactionInBlock` overload, but is exposed here for
+ *  tests. Do not use this function directly outside of tests, instead use the non-internal overload.
+ */
+std::optional<size_t> FindTransactionInBlock(const CBlock &block, const TxId &txid, bool blockIsCTOR);
+} // namespace internal
 
 /**
  * Retrieve a transaction (from memory pool, or from disk, if possible).
