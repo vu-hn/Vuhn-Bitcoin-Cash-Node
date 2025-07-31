@@ -60,6 +60,7 @@
 #include <atomic>
 #include <ctime>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <optional>
@@ -895,6 +896,49 @@ bool AcceptToMemoryPool(const Config &config, CTxMemPool &pool,
 }
 
 /**
+ * Find a transaction with the given txid in a block.
+ * Returns index of `txid` in the block if found or a nullopt if not found.
+ *
+ * If the block is *known* to be CTOR-sorted, then specify blockIsCTOR = true
+ * in order to perform a fast binary search for the block tx.
+ *
+ * WARNING: If the block is not sorted, setting blockIsCTOR = true is UB!
+*/
+std::optional<size_t> internal::FindTransactionInBlock(const CBlock &block, const TxId &txid, const bool blockIsCTOR) {
+    constexpr size_t BINARY_SEARCH_THRESHOLD = 15;
+    if (blockIsCTOR && block.vtx.size() > BINARY_SEARCH_THRESHOLD) {
+        // CTOR block: check if coinbase first, then use binary search on sorted txids which come after coinbase.
+        if (!block.vtx.empty() && block.vtx[0]->GetId() == txid) {
+            return 0;
+        }
+        auto it = std::lower_bound(block.vtx.begin() + 1, block.vtx.end(), txid,
+                                   [](const CTransactionRef &a, const TxId &t) { return a->GetId() < t; });
+        if (it != block.vtx.end() && (*it)->GetId() == txid) {
+            return std::distance(block.vtx.begin(), it);
+        }
+    } else {
+        // Non-CTOR or small block: use linear search
+        for (size_t i = 0; i < block.vtx.size(); ++i) {
+            if (block.vtx[i]->GetId() == txid) {
+                return i;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+/**
+ * Find a transaction with the given txid in a block.
+ * Returns index of `txid` in the block if found or a nullopt if not found.
+ */
+std::optional<size_t>
+FindTransactionInBlock(const Consensus::Params &params, const CBlockIndex *pindex, const CBlock &block, const TxId &txid,
+                       const bool isOnActiveChain) {
+    const bool blockIsCTOR = isOnActiveChain && IsMagneticAnomalyEnabled(params, pindex->pprev);
+    return internal::FindTransactionInBlock(block, txid, blockIsCTOR);
+}
+
+/**
  * Return transaction in txOut, and if it was found inside a block, its hash is
  * placed in hashBlock. If blockIndex is provided, the transaction is fetched
  * from the corresponding block.
@@ -930,12 +974,12 @@ bool GetTransaction(const TxId &txid, CTransactionRef &txOut,
     if (pindexSlow) {
         CBlock block;
         if (ReadBlockFromDisk(block, pindexSlow, params)) {
-            for (const auto &tx : block.vtx) {
-                if (tx->GetId() == txid) {
-                    txOut = tx;
-                    hashBlock = pindexSlow->GetBlockHash();
-                    return true;
-                }
+            const bool isOnActiveChain = ::ChainActive().Contains(pindexSlow); // cs_main must be held for this call
+            std::optional<size_t> txPos = FindTransactionInBlock(params, pindexSlow, block, txid, isOnActiveChain);
+            if (txPos.has_value()) {
+                txOut = block.vtx[*txPos];
+                hashBlock = pindexSlow->GetBlockHash();
+                return true;
             }
         }
     }

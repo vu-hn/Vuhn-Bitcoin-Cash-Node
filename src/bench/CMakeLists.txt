@@ -53,6 +53,7 @@ add_executable(bench_bitcoin
 	dsproof.cpp
 	duplicate_inputs.cpp
 	examples.cpp
+	find_tx.cpp
 	gcs_filter.cpp
 	json.cpp
 	json_util.cpp
