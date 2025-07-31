@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2018 The Bitcoin Core developers
-// Copyright (c) 2021 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,7 +8,6 @@
 #include <validationinterface.h>
 
 #include <list>
-#include <map>
 #include <memory>
 
 class CBlockIndex;
@@ -16,7 +15,7 @@ class CZMQAbstractNotifier;
 
 class CZMQNotificationInterface final : public CValidationInterface {
 public:
-    virtual ~CZMQNotificationInterface();
+    ~CZMQNotificationInterface();
 
     std::list<const CZMQAbstractNotifier *> GetActiveNotifiers() const;
 
@@ -41,7 +40,7 @@ protected:
 private:
     CZMQNotificationInterface();
 
-    void *pcontext;
+    void *pcontext = nullptr;
     std::list<std::unique_ptr<CZMQAbstractNotifier>> notifiers;
 };
 
