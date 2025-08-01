@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +18,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -602,41 +604,24 @@ class CAutoFile {
 
     FILE *file;
 
-    void setNull() { nType = nVersion = 0; file = nullptr; }
+    void setNull();
 
 public:
-    CAutoFile(FILE *filenew, int nTypeIn, int nVersionIn)
-        : nType(nTypeIn), nVersion(nVersionIn) {
-        file = filenew;
-    }
+    CAutoFile(FILE *filenew, int nTypeIn, int nVersionIn);
 
     // Alow move-construct to transfer ownership
-    CAutoFile(CAutoFile &&o) : nType(o.nType), nVersion(o.nVersion), file(o.file) { o.setNull(); }
+    CAutoFile(CAutoFile &&o);
 
     // Allow move-assign to transfer ownership
-    CAutoFile &operator=(CAutoFile &&o) {
-        if (this != &o) {
-            if (file != o.file) fclose(); // close our managed file if we have one and it's not same as o's
-            file = o.file;
-            nType = o.nType;
-            nVersion = o.nVersion;
-            o.setNull(); // null out moved-from object to complete the transfer
-        }
-        return *this;
-    }
+    CAutoFile &operator=(CAutoFile &&o);
 
-    ~CAutoFile() { fclose(); }
+    ~CAutoFile();
 
     // Disallow copies
     CAutoFile(const CAutoFile &) = delete;
     CAutoFile &operator=(const CAutoFile &) = delete;
 
-    void fclose() {
-        if (file) {
-            ::fclose(file);
-            file = nullptr;
-        }
-    }
+    void fclose();
 
     /**
      * Get wrapped FILE* with transfer of ownership.
@@ -644,11 +629,7 @@ public:
      * responsibility of the caller of this function to clean up the returned
      * FILE*.
      */
-    FILE *release() {
-        FILE *ret = file;
-        file = nullptr;
-        return ret;
-    }
+    FILE *release();
 
     /**
      * Get wrapped FILE* without transfer of ownership.
@@ -658,7 +639,7 @@ public:
     FILE *Get() const { return file; }
 
     /** Return true if the wrapped FILE* is nullptr, false otherwise. */
-    bool IsNull() const { return (file == nullptr); }
+    bool IsNull() const { return file == nullptr; }
 
     //
     // Stream subset
@@ -666,63 +647,32 @@ public:
     int GetType() const { return nType; }
     int GetVersion() const { return nVersion; }
 
-    void read(char *pch, size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::read: file handle is nullptr");
-        }
-        if (fread(pch, 1, nSize, file) != nSize) {
-            throw std::ios_base::failure(feof(file)
-                                             ? "CAutoFile::read: end of file"
-                                             : "CAutoFile::read: fread failed");
-        }
-    }
+    void read(std::span<std::byte> buf);
+    void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
+    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
 
-    void ignore(size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::ignore: file handle is nullptr");
-        }
-        uint8_t data[4096];
-        while (nSize > 0) {
-            size_t nNow = std::min<size_t>(nSize, sizeof(data));
-            if (fread(data, 1, nNow, file) != nNow) {
-                throw std::ios_base::failure(
-                    feof(file) ? "CAutoFile::ignore: end of file"
-                               : "CAutoFile::read: fread failed");
-            }
-            nSize -= nNow;
-        }
-    }
+    void ignore(size_t nSize);
 
-    void write(const char *pch, size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::write: file handle is nullptr");
-        }
-        if (fwrite(pch, 1, nSize, file) != nSize) {
-            throw std::ios_base::failure("CAutoFile::write: write failed");
-        }
-    }
+    void write(std::span<const std::byte> buf);
+    void write(const std::byte *pbuf, size_t nSize) { write(std::span{pbuf, nSize}); }
+    void write(const char *pch, size_t nSize) { write(reinterpret_cast<const std::byte *>(pch), nSize); }
 
     template <typename T> CAutoFile &operator<<(const T &obj) {
         // Serialize to this stream
         if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::operator<<: file handle is nullptr");
+            throw std::ios_base::failure("CAutoFile::operator<<: file handle is nullptr");
         }
         ::Serialize(*this, obj);
-        return (*this);
+        return *this;
     }
 
     template <typename T> CAutoFile &operator>>(T &&obj) {
         // Unserialize from this stream
         if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::operator>>: file handle is nullptr");
+            throw std::ios_base::failure("CAutoFile::operator>>: file handle is nullptr");
         }
         ::Unserialize(*this, obj);
-        return (*this);
+        return *this;
     }
 };
 
