@@ -700,41 +700,15 @@ private:
     //! how many bytes we guarantee to rewind
     uint64_t nRewind;
     //! the buffer
-    std::vector<char> vchBuf;
+    std::vector<std::byte> byteBuf;
 
 protected:
     //! read data from the source to fill the buffer
-    bool Fill() {
-        unsigned int pos = nSrcPos % vchBuf.size();
-        unsigned int readNow = vchBuf.size() - pos;
-        unsigned int nAvail = vchBuf.size() - (nSrcPos - nReadPos) - nRewind;
-        if (nAvail < readNow) {
-            readNow = nAvail;
-        }
-        if (readNow == 0) {
-            return false;
-        }
-        size_t nBytes = fread((void *)&vchBuf[pos], 1, readNow, src);
-        if (nBytes == 0) {
-            throw std::ios_base::failure(
-                feof(src) ? "CBufferedFile::Fill: end of file"
-                          : "CBufferedFile::Fill: fread failed");
-        } else {
-            nSrcPos += nBytes;
-            return true;
-        }
-    }
+    bool Fill();
 
 public:
-    CBufferedFile(FILE *fileIn, uint64_t nBufSize, uint64_t nRewindIn,
-                  int nTypeIn, int nVersionIn)
-        : nType(nTypeIn), nVersion(nVersionIn), nSrcPos(0), nReadPos(0),
-          nReadLimit(std::numeric_limits<uint64_t>::max()), nRewind(nRewindIn),
-          vchBuf(nBufSize, 0) {
-        src = fileIn;
-    }
-
-    ~CBufferedFile() { fclose(); }
+    CBufferedFile(FILE *fileIn, uint64_t nBufSize, uint64_t nRewindIn, int nTypeIn, int nVersionIn);
+    ~CBufferedFile();
 
     // Disallow copies
     CBufferedFile(const CBufferedFile &) = delete;
@@ -743,100 +717,35 @@ public:
     int GetVersion() const { return nVersion; }
     int GetType() const { return nType; }
 
-    void fclose() {
-        if (src) {
-            ::fclose(src);
-            src = nullptr;
-        }
-    }
+    void fclose();
 
     //! check whether we're at the end of the source file
-    bool eof() const { return nReadPos == nSrcPos && feof(src); }
+    bool eof() const { return nReadPos == nSrcPos && std::feof(src); }
 
     //! read a number of bytes
-    void read(char *pch, size_t nSize) {
-        if (nSize + nReadPos > nReadLimit) {
-            throw std::ios_base::failure("Read attempted past buffer limit");
-        }
-        if (nSize + nRewind > vchBuf.size()) {
-            throw std::ios_base::failure("Read larger than buffer size");
-        }
-        while (nSize > 0) {
-            if (nReadPos == nSrcPos) {
-                Fill();
-            }
-            unsigned int pos = nReadPos % vchBuf.size();
-            size_t nNow = nSize;
-            if (nNow + pos > vchBuf.size()) {
-                nNow = vchBuf.size() - pos;
-            }
-            if (nNow + nReadPos > nSrcPos) {
-                nNow = nSrcPos - nReadPos;
-            }
-            memcpy(pch, &vchBuf[pos], nNow);
-            nReadPos += nNow;
-            pch += nNow;
-            nSize -= nNow;
-        }
-    }
+    void read(std::span<std::byte> outBuf);
+    void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
+    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
 
     //! return the current reading position
     uint64_t GetPos() const { return nReadPos; }
 
     //! rewind to a given reading position
-    bool SetPos(uint64_t nPos) {
-        nReadPos = nPos;
-        if (nReadPos + nRewind < nSrcPos) {
-            nReadPos = nSrcPos - nRewind;
-            return false;
-        } else if (nReadPos > nSrcPos) {
-            nReadPos = nSrcPos;
-            return false;
-        } else {
-            return true;
-        }
-    }
+    bool SetPos(uint64_t nPos);
 
-    bool Seek(uint64_t nPos) {
-        long nLongPos = nPos;
-        if (nPos != (uint64_t)nLongPos) {
-            return false;
-        }
-        if (fseek(src, nLongPos, SEEK_SET)) {
-            return false;
-        }
-        nLongPos = ftell(src);
-        nSrcPos = nLongPos;
-        nReadPos = nLongPos;
-        return true;
-    }
+    bool Seek(uint64_t nPos);
 
     //! Prevent reading beyond a certain position. No argument removes the
     //! limit.
-    bool SetLimit(uint64_t nPos = std::numeric_limits<uint64_t>::max()) {
-        if (nPos < nReadPos) {
-            return false;
-        }
-        nReadLimit = nPos;
-        return true;
-    }
+    bool SetLimit(uint64_t nPos = std::numeric_limits<uint64_t>::max());
 
     template <typename T> CBufferedFile &operator>>(T &&obj) {
         // Unserialize from this stream
         ::Unserialize(*this, obj);
-        return (*this);
+        return *this;
     }
 
     //! search for a given byte in the stream, and remain positioned on it
-    void FindByte(char ch) {
-        while (true) {
-            if (nReadPos == nSrcPos) {
-                Fill();
-            }
-            if (vchBuf[nReadPos % vchBuf.size()] == ch) {
-                break;
-            }
-            nReadPos++;
-        }
-    }
+    void FindByte(std::byte ch);
+    void FindByte(char ch) { FindByte(static_cast<std::byte>(ch)); }
 };

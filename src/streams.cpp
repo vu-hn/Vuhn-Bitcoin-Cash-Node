@@ -6,6 +6,10 @@
 
 #include <array>
 #include <cstdio>
+#include <limits>
+
+
+/* -- CAutoFile -- */
 
 CAutoFile::CAutoFile(FILE *filenew, int nTypeIn, int nVersionIn) : nType(nTypeIn), nVersion(nVersionIn), file(filenew) {}
 
@@ -73,5 +77,113 @@ void CAutoFile::write(std::span<const std::byte> buf) {
     }
     if (std::fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
         throw std::ios_base::failure("CAutoFile::write: write failed");
+    }
+}
+
+
+/* -- CBufferedFile -- */
+
+bool CBufferedFile::Fill() {
+    size_t pos = nSrcPos % byteBuf.size();
+    size_t readNow = byteBuf.size() - pos;
+    size_t nAvail = byteBuf.size() - (nSrcPos - nReadPos) - nRewind;
+    if (nAvail < readNow) {
+        readNow = nAvail;
+    }
+    if (readNow == 0) {
+        return false;
+    }
+    size_t nBytes = std::fread(&byteBuf[pos], 1, readNow, src);
+    if (nBytes == 0) {
+        throw std::ios_base::failure(std::feof(src) ? "CBufferedFile::Fill: end of file"
+                                                    : "CBufferedFile::Fill: fread failed");
+    } else {
+        nSrcPos += nBytes;
+        return true;
+    }
+}
+
+CBufferedFile::CBufferedFile(FILE *fileIn, uint64_t nBufSize, uint64_t nRewindIn, int nTypeIn, int nVersionIn)
+    : nType(nTypeIn), nVersion(nVersionIn), src{fileIn}, nSrcPos(0), nReadPos(0),
+      nReadLimit(std::numeric_limits<uint64_t>::max()), nRewind(nRewindIn), byteBuf(nBufSize, std::byte{}) {}
+
+CBufferedFile::~CBufferedFile() { fclose(); }
+
+void CBufferedFile::fclose() {
+    if (src) {
+        std::fclose(src);
+        src = nullptr;
+    }
+}
+
+void CBufferedFile::read(std::span<std::byte> outBuf) {
+    if (outBuf.size() + nReadPos > nReadLimit) {
+        throw std::ios_base::failure("Read attempted past buffer limit");
+    }
+    if (outBuf.size() + nRewind > byteBuf.size()) {
+        throw std::ios_base::failure("Read larger than buffer size");
+    }
+    while (!outBuf.empty()) {
+        if (nReadPos == nSrcPos) {
+            Fill();
+        }
+        const size_t pos = nReadPos % byteBuf.size();
+        size_t nNow = outBuf.size();
+        if (nNow + pos > byteBuf.size()) {
+            nNow = byteBuf.size() - pos;
+        }
+        if (nNow + nReadPos > nSrcPos) {
+            nNow = nSrcPos - nReadPos;
+        }
+        std::memcpy(outBuf.data(), &byteBuf[pos], nNow);
+        nReadPos += nNow;
+        outBuf = outBuf.subspan(nNow);
+    }
+}
+
+bool CBufferedFile::SetPos(uint64_t nPos) {
+    nReadPos = nPos;
+    if (nReadPos + nRewind < nSrcPos) {
+        nReadPos = nSrcPos - nRewind;
+        return false;
+    } else if (nReadPos > nSrcPos) {
+        nReadPos = nSrcPos;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+bool CBufferedFile::Seek(uint64_t nPos) {
+    long nLongPos = nPos;
+    if (nPos != static_cast<uint64_t>(nLongPos)) {
+        return false;
+    }
+    if (std::fseek(src, nLongPos, SEEK_SET)) {
+        return false;
+    }
+    nLongPos = std::ftell(src);
+    nSrcPos = nLongPos;
+    nReadPos = nLongPos;
+    return true;
+}
+
+bool CBufferedFile::SetLimit(uint64_t nPos) {
+    if (nPos < nReadPos) {
+        return false;
+    }
+    nReadLimit = nPos;
+    return true;
+}
+
+void CBufferedFile::FindByte(const std::byte ch) {
+    while (true) {
+        if (nReadPos == nSrcPos) {
+            Fill();
+        }
+        if (byteBuf[nReadPos % byteBuf.size()] == ch) {
+            break;
+        }
+        nReadPos++;
     }
 }
