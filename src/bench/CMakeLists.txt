@@ -64,6 +64,7 @@ add_executable(bench_bitcoin
 	merkle_root.cpp
 	net_messages.cpp
 	prevector.cpp
+	readwriteblock.cpp
 	removeforblock.cpp
 	rollingbloom.cpp
 	rpc_blockchain.cpp
