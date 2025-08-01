@@ -46,11 +46,15 @@ FILE *CAutoFile::release() {
     return ret;
 }
 
-void CAutoFile::read(std::span<std::byte> buf) {
+size_t CAutoFile::detail_fread(std::span<std::byte> dst) {
     if (!file) {
         throw std::ios_base::failure("CAutoFile::read: file handle is nullptr");
     }
-    if (std::fread(buf.data(), 1, buf.size(), file) != buf.size()) {
+    return std::fread(dst.data(), 1, dst.size(), file);
+}
+
+void CAutoFile::read(std::span<std::byte> buf) {
+    if (detail_fread(buf) != buf.size()) {
         throw std::ios_base::failure(std::feof(file) ? "CAutoFile::read: end of file"
                                                      : "CAutoFile::read: fread failed");
     }
