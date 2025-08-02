@@ -3,15 +3,25 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <flatfile.h>
 #include <fs.h>
+#include <node/blockstorage.h>
 #include <prevector.h>
+#include <random.h>
 #include <streams.h>
+#include <util/check.h>
+#include <util/defer.h>
+#include <util/system.h>
+#include <version.h>
 
 #include <test/setup_common.h>
 
 #include <boost/test/unit_test.hpp>
 
-BOOST_FIXTURE_TEST_SUITE(streams_tests, BasicTestingSetup)
+#include <algorithm>
+#include <span>
+
+BOOST_FIXTURE_TEST_SUITE(streams_tests, TestingSetup)
 
 template <typename VecT>
 static bool test_generic_vector_writer() {
@@ -337,6 +347,148 @@ BOOST_AUTO_TEST_CASE(autofile_move) {
     BOOST_REQUIRE(!af2.IsNull() && af2.GetType() == t1 && af2.GetVersion() == v1 && af2.Get() == f1);
     BOOST_REQUIRE(af3.IsNull() && af3.GetType() == 0 && af3.GetVersion() == 0);
     TestContents({&af1, &af2}, {43, 42});
+}
+
+BOOST_AUTO_TEST_CASE(buffered_reader_matches_autofile_random_content) {
+    FastRandomContext rng;
+    const size_t file_size = 1 + rng.randrange(1 << 17);
+    const size_t buf_size = 1 + rng.randrange(file_size);
+    const FlatFilePos pos{0, 0};
+
+    FlatFileSeq test_file{GetDataDir(), "buffered_file_test_random", BLOCKFILE_CHUNK_SIZE};
+
+    const Defer d([&]{ fs::remove(test_file.FileName(pos)); }); // remove the file on scope end
+
+    // Write out the file with random content
+    {
+        const auto vch = rng.randbytes(file_size);
+        BOOST_REQUIRE(vch.size() == file_size);
+        CAutoFile{test_file.Open(pos, /*read_only=*/false), SER_DISK, PROTOCOL_VERSION}.write(std::as_bytes(std::span{vch}));
+    }
+    BOOST_CHECK_EQUAL(fs::file_size(test_file.FileName(pos)), file_size);
+
+    {
+        CAutoFile direct_file{test_file.Open(pos, /*read_only=*/true), SER_DISK, PROTOCOL_VERSION};
+
+        CAutoFile buffered_file{test_file.Open(pos, /*read_only=*/true), SER_DISK, PROTOCOL_VERSION};
+        BufferedReader buffered_reader{std::move(buffered_file), buf_size};
+
+        for (size_t total_read = 0; total_read < file_size;) {
+            const size_t read =
+                Assert(std::min<size_t>(1 + rng.randrange(rng.randbool() ? buf_size : 2 * buf_size),
+                                        file_size - total_read));
+
+            DataBuffer direct_file_buffer{read};
+            direct_file.read(direct_file_buffer);
+
+            DataBuffer buffered_buffer{read};
+            buffered_reader.read(buffered_buffer);
+
+            BOOST_CHECK(direct_file_buffer == buffered_buffer);
+
+            total_read += read;
+        }
+
+        {
+            DataBuffer excess_byte{1};
+            BOOST_CHECK_EXCEPTION(direct_file.read(excess_byte), std::ios_base::failure, HasReason{"end of file"});
+        }
+
+        {
+            DataBuffer excess_byte{1};
+            BOOST_CHECK_EXCEPTION(buffered_reader.read(excess_byte), std::ios_base::failure, HasReason{"end of file"});
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(buffered_writer_matches_autofile_random_content) {
+    FastRandomContext rng;
+    const size_t file_size = 1 + rng.randrange(1 << 17);
+    const size_t buf_size = 1 + rng.randrange(file_size);
+    const FlatFilePos pos{0, 0};
+
+    FlatFileSeq test_buffered{GetDataDir(), "buffered_write_test", BLOCKFILE_CHUNK_SIZE};
+    FlatFileSeq test_direct{GetDataDir(), "direct_write_test", BLOCKFILE_CHUNK_SIZE};
+
+    // Remove the above files on scope end
+    const Defer d([&]{
+        fs::remove(test_direct.FileName(pos));
+        fs::remove(test_buffered.FileName(pos));
+    });
+
+    {
+        const auto random_data = rng.randbytes(file_size);
+        const std::span<const std::byte> test_data = std::as_bytes(std::span{random_data});
+
+        CAutoFile direct_file{test_direct.Open(pos, /*read_only=*/false), SER_DISK, PROTOCOL_VERSION};
+
+        CAutoFile buffered_file{test_buffered.Open(pos, /*read_only=*/false), SER_DISK, PROTOCOL_VERSION};
+        BufferedWriter buffered{std::move(buffered_file), buf_size};
+
+        for (size_t total_written = 0; total_written < file_size;) {
+            const size_t write_size =
+                Assert(std::min<size_t>(1 + rng.randrange(rng.randbool() ? buf_size : 2 * buf_size),
+                                        file_size - total_written));
+
+            const auto current_span = std::span{test_data}.subspan(total_written, write_size);
+            direct_file.write(current_span);
+            buffered.write(current_span);
+
+            total_written += write_size;
+        }
+        // Destructors of AutoFile and BufferedWriter will flush/close here
+    }
+
+    // Compare the resulting files
+    DataBuffer direct_result{file_size};
+    {
+        CAutoFile verify_direct{test_direct.Open(pos, /*read_only=*/true), SER_DISK, PROTOCOL_VERSION};
+        verify_direct.read(direct_result);
+
+        DataBuffer excess_byte{1};
+        BOOST_CHECK_EXCEPTION(verify_direct.read(excess_byte), std::ios_base::failure, HasReason{"end of file"});
+    }
+
+    DataBuffer buffered_result{file_size};
+    {
+        CAutoFile verify_buffered{test_buffered.Open(pos, /*read_only=*/true), SER_DISK, PROTOCOL_VERSION};
+        verify_buffered.read(buffered_result);
+
+        DataBuffer excess_byte{1};
+        BOOST_CHECK_EXCEPTION(verify_buffered.read(excess_byte), std::ios_base::failure, HasReason{"end of file"});
+    }
+
+    BOOST_CHECK(direct_result == buffered_result);
+}
+
+BOOST_AUTO_TEST_CASE(buffered_writer_reader) {
+    FastRandomContext rng;
+    const uint32_t v1{rng.rand32()}, v2{rng.rand32()}, v3{rng.rand32()};
+    const fs::path test_file{GetDataDir() / "test_buffered_write_read.bin"};
+
+    const Defer d([&]{ fs::remove(test_file); }); // remove the file on scope end
+
+    // Write out the values through a precisely sized BufferedWriter
+    {
+        CAutoFile file{fsbridge::fopen(test_file, "w+b"), SER_DISK, PROTOCOL_VERSION};
+        BufferedWriter f(std::move(file), sizeof(v1) + sizeof(v2) + sizeof(v3));
+        f << v1 << v2;
+        f.write(std::as_bytes(std::span{&v3, 1}));
+    }
+    // Read back and verify using BufferedReader
+    {
+        uint32_t v1_{0}, v2_{0}, v3_{0};
+        CAutoFile file{fsbridge::fopen(test_file, "rb"), SER_DISK, PROTOCOL_VERSION};
+        BufferedReader f(std::move(file), sizeof(v1) + sizeof(v2) + sizeof(v3));
+        f >> v1_ >> v2_;
+        f.read(std::as_writable_bytes(std::span{&v3_, 1}));
+        BOOST_CHECK_EQUAL(v1_, v1);
+        BOOST_CHECK_EQUAL(v2_, v2);
+        BOOST_CHECK_EQUAL(v3_, v3);
+
+        DataBuffer excess_byte{1};
+        BOOST_CHECK_EXCEPTION(f.read(excess_byte), std::ios_base::failure, HasReason{"end of file"});
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
