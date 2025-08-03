@@ -219,6 +219,7 @@ add_boost_unit_tests_to_suite(bitcoin test_bitcoin
     blockfilter_tests.cpp
     blockindex_tests.cpp
     blockstatus_tests.cpp
+    blockstorage_tests.cpp
     bloom_tests.cpp
     bswap_tests.cpp
     cashaddrenc_tests.cpp

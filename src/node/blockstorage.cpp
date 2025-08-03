@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2021 The Bitcoin Core developers
-// Copyright (c) 2024 The Bitcoin developers
+// Copyright (c) 2024-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -355,8 +355,8 @@ bool WriteUndoDataForBlock(const CBlockUndo &blockundo, CValidationState &state,
     return true;
 }
 
-bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos,
-                       const Consensus::Params &params) {
+bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos, const Consensus::Params &params,
+                       const std::optional<BlockHash> &expectedHash) {
     block.SetNull();
 
     // Open history file to read
@@ -374,34 +374,30 @@ bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos,
                      e.what(), pos.ToString());
     }
 
+    const auto blockHash = block.GetHash();
+
     // Check the header
-    if (!CheckProofOfWork(block.GetHash(), block.nBits, params)) {
-        return error("ReadBlockFromDisk: Errors in block header at %s",
-                     pos.ToString());
+    if (!CheckProofOfWork(blockHash, block.nBits, params)) {
+        return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+    }
+
+    // Optionally check the block hash
+    if (expectedHash && *expectedHash != blockHash) {
+        return error("GetHash() doesn't match index at %s while reading block (%s != %s)",
+                     pos.ToString(), blockHash.ToString(), expectedHash->ToString());
     }
 
     return true;
 }
 
-bool ReadBlockFromDisk(CBlock &block, const CBlockIndex *pindex,
-                       const Consensus::Params &params) {
+bool ReadBlockFromDisk(CBlock &block, const CBlockIndex *pindex, const Consensus::Params &params) {
     FlatFilePos blockPos;
     {
         LOCK(cs_main);
         blockPos = pindex->GetBlockPos();
     }
 
-    if (!ReadBlockFromDisk(block, blockPos, params)) {
-        return false;
-    }
-
-    if (block.GetHash() != pindex->GetBlockHash()) {
-        return error("ReadBlockFromDisk(CBlock&, CBlockIndex*): GetHash() "
-                     "doesn't match index for %s at %s",
-                     pindex->ToString(), pindex->GetBlockPos().ToString());
-    }
-
-    return true;
+    return ReadBlockFromDisk(block, blockPos, params, pindex->GetBlockHash());
 }
 
 static std::optional<CAutoFile> ReadBlockSizeCommon(uint64_t &blockSizeOut, const CBlockIndex *pindex,

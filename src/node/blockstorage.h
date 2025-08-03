@@ -1,11 +1,12 @@
 // Copyright (c) 2011-2021 The Bitcoin Core developers
-// Copyright (c) 2023 The Bitcoin developers
+// Copyright (c) 2023-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #pragma once
 
 #include <fs.h>
+#include <primitives/blockhash.h>
 #include <sync.h>
 
 #include <atomic>
@@ -81,10 +82,9 @@ uint64_t CalculateCurrentUsage();
 void UnlinkPrunedFiles(const std::set<int> &setFilesToPrune);
 
 /** Functions for disk access for blocks */
-bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos,
-                       const Consensus::Params &params);
-bool ReadBlockFromDisk(CBlock &block, const CBlockIndex *pindex,
-                       const Consensus::Params &params);
+bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos, const Consensus::Params &params,
+                       const std::optional<BlockHash> &expectedHash = std::nullopt);
+bool ReadBlockFromDisk(CBlock &block, const CBlockIndex *pindex, const Consensus::Params &params);
 /**
  * Read raw block bytes from disk. Faster than the above, because this function just returns the raw block data without
  * any unserialization. Intended to be used by the net code for low-overhead serving of block data.
