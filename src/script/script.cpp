@@ -450,9 +450,7 @@ bool CScript::IsPushOnly() const {
     return this->IsPushOnly(begin());
 }
 
-template <typename It, std::enable_if_t<   std::is_same_v<It, CScriptBase::const_iterator>
-                                        || std::is_same_v<It, const uint8_t *>, int>>
-bool GetScriptOp(It &pc, It end, opcodetype &opcodeRet, std::vector<uint8_t> *pvchRet) {
+bool GetScriptOp(const uint8_t *&pc, const uint8_t *end, opcodetype &opcodeRet, std::vector<uint8_t> *pvchRet) {
     opcodeRet = INVALIDOPCODE;
     if (pvchRet) {
         pvchRet->clear();
@@ -503,10 +501,6 @@ bool GetScriptOp(It &pc, It end, opcodetype &opcodeRet, std::vector<uint8_t> *pv
     opcodeRet = static_cast<opcodetype>(opcode);
     return true;
 }
-
-// explicit template instantiations
-template bool GetScriptOp(CScriptBase::const_iterator &, CScriptBase::const_iterator, opcodetype &, std::vector<uint8_t> *);
-template bool GetScriptOp(const uint8_t * &, const uint8_t *, opcodetype &, std::vector<uint8_t> *);
 
 bool CScript::HasValidOps(uint32_t scriptFlags) const {
     const size_t maxElemSize = scriptFlags & SCRIPT_ENABLE_MAY2025 ? may2025::MAX_SCRIPT_ELEMENT_SIZE

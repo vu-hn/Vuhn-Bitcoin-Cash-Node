@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2022 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -37,198 +37,17 @@ template <unsigned int N, typename T, typename Size = uint32_t,
           typename Diff = int32_t>
 class prevector {
 public:
-    typedef Size size_type;
-    typedef Diff difference_type;
-    typedef T value_type;
-    typedef value_type &reference;
-    typedef const value_type &const_reference;
-    typedef value_type *pointer;
-    typedef const value_type *const_pointer;
-
-    class iterator {
-        T *ptr;
-
-    public:
-        typedef Diff difference_type;
-        typedef T value_type;
-        typedef T *pointer;
-        typedef T &reference;
-        typedef std::random_access_iterator_tag iterator_category;
-        iterator() : ptr(nullptr) {}
-        iterator(T *ptr_) : ptr(ptr_) {}
-        T &operator*() const { return *ptr; }
-        T *operator->() const { return ptr; }
-        T &operator[](size_type pos) { return ptr[pos]; }
-        const T &operator[](size_type pos) const { return ptr[pos]; }
-        iterator &operator++() {
-            ptr++;
-            return *this;
-        }
-        iterator &operator--() {
-            ptr--;
-            return *this;
-        }
-        iterator operator++(int) {
-            iterator copy(*this);
-            ++(*this);
-            return copy;
-        }
-        iterator operator--(int) {
-            iterator copy(*this);
-            --(*this);
-            return copy;
-        }
-        difference_type friend operator-(iterator a, iterator b) {
-            return &*a - &*b;
-        }
-        iterator operator+(size_type n) { return iterator(ptr + n); }
-        iterator &operator+=(size_type n) {
-            ptr += n;
-            return *this;
-        }
-        iterator operator-(size_type n) { return iterator(ptr - n); }
-        iterator &operator-=(size_type n) {
-            ptr -= n;
-            return *this;
-        }
-        bool operator==(iterator x) const { return ptr == x.ptr; }
-        bool operator!=(iterator x) const { return ptr != x.ptr; }
-        bool operator>=(iterator x) const { return ptr >= x.ptr; }
-        bool operator<=(iterator x) const { return ptr <= x.ptr; }
-        bool operator>(iterator x) const { return ptr > x.ptr; }
-        bool operator<(iterator x) const { return ptr < x.ptr; }
-    };
-
-    class reverse_iterator {
-        T *ptr;
-
-    public:
-        typedef Diff difference_type;
-        typedef T value_type;
-        typedef T *pointer;
-        typedef T &reference;
-        typedef std::bidirectional_iterator_tag iterator_category;
-        reverse_iterator() : ptr(nullptr) {}
-        reverse_iterator(T *ptr_) : ptr(ptr_) {}
-        T &operator*() { return *ptr; }
-        const T &operator*() const { return *ptr; }
-        T *operator->() { return ptr; }
-        const T *operator->() const { return ptr; }
-        reverse_iterator &operator--() {
-            ptr++;
-            return *this;
-        }
-        reverse_iterator &operator++() {
-            ptr--;
-            return *this;
-        }
-        reverse_iterator operator++(int) {
-            reverse_iterator copy(*this);
-            ++(*this);
-            return copy;
-        }
-        reverse_iterator operator--(int) {
-            reverse_iterator copy(*this);
-            --(*this);
-            return copy;
-        }
-        bool operator==(reverse_iterator x) const { return ptr == x.ptr; }
-        bool operator!=(reverse_iterator x) const { return ptr != x.ptr; }
-    };
-
-    class const_iterator {
-        const T *ptr;
-
-    public:
-        typedef Diff difference_type;
-        typedef const T value_type;
-        typedef const T *pointer;
-        typedef const T &reference;
-        typedef std::random_access_iterator_tag iterator_category;
-        const_iterator() : ptr(nullptr) {}
-        const_iterator(const T *ptr_) : ptr(ptr_) {}
-        const_iterator(iterator x) : ptr(&*x) {}
-        const T &operator*() const { return *ptr; }
-        const T *operator->() const { return ptr; }
-        const T &operator[](size_type pos) const { return ptr[pos]; }
-        const_iterator &operator++() {
-            ptr++;
-            return *this;
-        }
-        const_iterator &operator--() {
-            ptr--;
-            return *this;
-        }
-        const_iterator operator++(int) {
-            const_iterator copy(*this);
-            ++(*this);
-            return copy;
-        }
-        const_iterator operator--(int) {
-            const_iterator copy(*this);
-            --(*this);
-            return copy;
-        }
-        difference_type friend operator-(const_iterator a, const_iterator b) {
-            return &*a - &*b;
-        }
-        const_iterator operator+(size_type n) {
-            return const_iterator(ptr + n);
-        }
-        const_iterator &operator+=(size_type n) {
-            ptr += n;
-            return *this;
-        }
-        const_iterator operator-(size_type n) {
-            return const_iterator(ptr - n);
-        }
-        const_iterator &operator-=(size_type n) {
-            ptr -= n;
-            return *this;
-        }
-        bool operator==(const_iterator x) const { return ptr == x.ptr; }
-        bool operator!=(const_iterator x) const { return ptr != x.ptr; }
-        bool operator>=(const_iterator x) const { return ptr >= x.ptr; }
-        bool operator<=(const_iterator x) const { return ptr <= x.ptr; }
-        bool operator>(const_iterator x) const { return ptr > x.ptr; }
-        bool operator<(const_iterator x) const { return ptr < x.ptr; }
-    };
-
-    class const_reverse_iterator {
-        const T *ptr;
-
-    public:
-        typedef Diff difference_type;
-        typedef const T value_type;
-        typedef const T *pointer;
-        typedef const T &reference;
-        typedef std::bidirectional_iterator_tag iterator_category;
-        const_reverse_iterator() : ptr(nullptr) {}
-        const_reverse_iterator(const T *ptr_) : ptr(ptr_) {}
-        const_reverse_iterator(reverse_iterator x) : ptr(&*x) {}
-        const T &operator*() const { return *ptr; }
-        const T *operator->() const { return ptr; }
-        const_reverse_iterator &operator--() {
-            ptr++;
-            return *this;
-        }
-        const_reverse_iterator &operator++() {
-            ptr--;
-            return *this;
-        }
-        const_reverse_iterator operator++(int) {
-            const_reverse_iterator copy(*this);
-            ++(*this);
-            return copy;
-        }
-        const_reverse_iterator operator--(int) {
-            const_reverse_iterator copy(*this);
-            --(*this);
-            return copy;
-        }
-        bool operator==(const_reverse_iterator x) const { return ptr == x.ptr; }
-        bool operator!=(const_reverse_iterator x) const { return ptr != x.ptr; }
-    };
+    using size_type = Size;
+    using difference_type = Diff;
+    using value_type = T;
+    using reference = value_type &;
+    using const_reference = const value_type &;
+    using pointer = value_type *;
+    using const_pointer = const value_type *;
+    using iterator = pointer;
+    using const_iterator = const_pointer;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 private:
 #pragma pack(push, 1)
@@ -388,14 +207,10 @@ public:
     iterator end() { return iterator(item_ptr(size())); }
     const_iterator end() const { return const_iterator(item_ptr(size())); }
 
-    reverse_iterator rbegin() { return reverse_iterator(item_ptr(size() - 1)); }
-    const_reverse_iterator rbegin() const {
-        return const_reverse_iterator(item_ptr(size() - 1));
-    }
-    reverse_iterator rend() { return reverse_iterator(item_ptr(-1)); }
-    const_reverse_iterator rend() const {
-        return const_reverse_iterator(item_ptr(-1));
-    }
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
+    const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+    reverse_iterator rend() { return reverse_iterator(begin()); }
+    const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 
     size_t capacity() const {
         if (is_direct()) {
