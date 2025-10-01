@@ -12,8 +12,6 @@
 #include <script/sign.h>
 #include <script/standard.h>
 
-typedef std::vector<uint8_t> valtype;
-
 namespace {
 
 /**

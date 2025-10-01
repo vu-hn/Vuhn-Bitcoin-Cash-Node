@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -20,8 +20,6 @@
 #include <algorithm>
 
 BOOST_FIXTURE_TEST_SUITE(native_introspection_tests, BasicTestingSetup)
-using valtype = std::vector<uint8_t>;
-using stacktype = std::vector<valtype>;
 
 
 namespace detail {
@@ -39,7 +37,7 @@ auto genArr(F&& f) {
 }
 
 static
-std::string ToString(const stacktype &s) {
+std::string ToString(const StackT &s) {
     std::string ret = "[";
     int ctr = 0;
     for (const auto &v : s) {
@@ -51,10 +49,10 @@ std::string ToString(const stacktype &s) {
 }
 
 static
-void CheckErrorWithFlags(uint32_t flags, stacktype const& original_stack, CScript const& script, ScriptExecutionContextOpt const& context, ScriptError expected) {
+void CheckErrorWithFlags(uint32_t flags, StackT const& original_stack, CScript const& script, ScriptExecutionContextOpt const& context, ScriptError expected) {
     const ContextOptSignatureChecker sigchecker(context);
     ScriptError err = ScriptError::OK;
-    stacktype stack{original_stack};
+    StackT stack{original_stack};
     bool r = EvalScript(stack, script, flags, sigchecker, &err);
     BOOST_CHECK_MESSAGE(!r, strprintf("CheckError Result: %d for script: \"%s\" with stack: %s, resulting stack: %s, "
                                       "flags: %x",
@@ -64,10 +62,10 @@ void CheckErrorWithFlags(uint32_t flags, stacktype const& original_stack, CScrip
 }
 
 static
-void CheckPassWithFlags(uint32_t flags, stacktype const& original_stack, CScript const& script, ScriptExecutionContextOpt const& context, stacktype const& expected) {
+void CheckPassWithFlags(uint32_t flags, StackT const& original_stack, CScript const& script, ScriptExecutionContextOpt const& context, StackT const& expected) {
     const ContextOptSignatureChecker sigchecker(context);
     ScriptError err = ScriptError::OK;
-    stacktype stack{original_stack};
+    StackT stack{original_stack};
     bool r = EvalScript(stack, script, flags, sigchecker, &err);
     BOOST_CHECK_MESSAGE(r, strprintf("CheckPass Result: %d for script: \"%s\" with stack: %s, resulting stack: %s, "
                                      "flags: %x",

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,26 +11,23 @@
 
 #include <boost/test/unit_test.hpp>
 
-typedef std::vector<uint8_t> valtype;
-typedef std::vector<valtype> stacktype;
-
 BOOST_FIXTURE_TEST_SUITE(op_reversebytes_tests, BasicTestingSetup)
 
 static
-void CheckErrorWithFlags(const uint32_t flags, const stacktype &original_stack, const CScript &script, const ScriptError expected) {
+void CheckErrorWithFlags(const uint32_t flags, const StackT &original_stack, const CScript &script, const ScriptError expected) {
     BaseSignatureChecker sigchecker;
     ScriptError err = ScriptError::OK;
-    stacktype stack{original_stack};
+    StackT stack{original_stack};
     bool r = EvalScript(stack, script, flags, sigchecker, &err);
     BOOST_CHECK(!r);
     BOOST_CHECK(err == expected);
 }
 
 static
-void CheckPassWithFlags(const uint32_t flags, const stacktype &original_stack, const CScript &script, const stacktype &expected) {
+void CheckPassWithFlags(const uint32_t flags, const StackT &original_stack, const CScript &script, const StackT &expected) {
     BaseSignatureChecker sigchecker;
     ScriptError err = ScriptError::OK;
-    stacktype stack{original_stack};
+    StackT stack{original_stack};
     bool r = EvalScript(stack, script, flags, sigchecker, &err);
     BOOST_CHECK(r);
     BOOST_CHECK(err == ScriptError::OK);

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Bitcoin developers
+// Copyright (c) 2024-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,9 +25,6 @@
 #ifndef BOOST_TEST_CONTEXT
 #define BOOST_TEST_CONTEXT(x)
 #endif
-
-using valtype = std::vector<uint8_t>;
-using stacktype = std::vector<valtype>;
 
 BOOST_FIXTURE_TEST_SUITE(vmlimits_tests, BasicTestingSetup)
 
@@ -194,16 +191,16 @@ struct ExpectedCounts {
           opCostNonStd(opCostNonStdIn < 0 ? opCostStd : opCostNonStdIn) {}
 };
 
-void CheckEvalScript(const stacktype &original_stack,
+void CheckEvalScript(const StackT &original_stack,
                      const CScript &script,
-                     const stacktype &expected_stack,
+                     const StackT &expected_stack,
                      const ExpectedCounts &expected,
                      const std::vector<uint32_t> & flagset = allflags,
                      const ScriptError expect_error = ScriptError::OK) {
     for (uint32_t flags : flagset) {
         const bool expect_result = expect_error == ScriptError::OK;
         ScriptError err = ScriptError::UNKNOWN;
-        stacktype stack{original_stack};
+        StackT stack{original_stack};
         ScriptExecutionMetrics metrics;
 
         bool r = EvalScript(stack, script, flags, dummysigchecker, metrics, &err);
@@ -268,7 +265,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
             script << ScriptInt::fromIntUnchecked(n) << OP_CHECKMULTISIG;
             scriptOpCost += 200 + (n != 0);
 
-            stacktype sigs;
+            StackT sigs;
 
             // The all-null-signatures case with null dummy element counts as 0
             // sigchecks, since all signatures are null.
@@ -373,14 +370,14 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
     // CHECKMULTISIG with schnorr cannot return false, it just fails instead
     // (hence, the sigchecks count is unimportant)
     {
-        stacktype stack{{1}, txsigschnorr}, expectstack{{1}, txsigschnorr, {1}, badpub, {1}};
+        StackT stack{{1}, txsigschnorr}, expectstack{{1}, txsigschnorr, {1}, badpub, {1}};
         script = CScript() << ScriptInt::fromIntUnchecked(1) << badpub << ScriptInt::fromIntUnchecked(1) << OP_CHECKMULTISIG;
         CHECK_EVALSCRIPT(stack, script, expectstack,
                          {0, 0, 402 + int(badpub.size())},
                          {SCRIPT_VERIFY_NONE|SCRIPT_ENABLE_MAY2025}, ScriptError::SIG_BADLENGTH);
     }
     {
-        stacktype stack{{1}, txsigschnorr}, expectstack{{1}, txsigschnorr, {1}, badpub, {1}};
+        StackT stack{{1}, txsigschnorr}, expectstack{{1}, txsigschnorr, {1}, badpub, {1}};
         script = CScript() << ScriptInt::fromIntUnchecked(1) << badpub << ScriptInt::fromIntUnchecked(1) << OP_CHECKMULTISIG;
         CHECK_EVALSCRIPT(stack, script, expectstack,
                          {0, 0, 402 + int(badpub.size())},
@@ -389,7 +386,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
 
     // EvalScript cumulatively increases the sigchecks count.
     {
-        stacktype stack{txsigschnorr};
+        StackT stack{txsigschnorr};
         TestableScriptExecutionMetrics metrics(12345, 6789, 101112);
         const auto flags = SCRIPT_VERIFY_NONE|SCRIPT_ENABLE_MAY2025;
         bool r = EvalScript(stack, CScript() << pub << OP_CHECKSIG, flags, dummysigchecker, metrics);
@@ -426,7 +423,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
     // OP_ROLL grinding, see
     // https://bitslog.com/2017/04/17/new-quadratic-delays-in-bitcoin-scripts/
     {
-        stacktype bigstack;
+        StackT bigstack;
         bigstack.assign(999, {1});
         script = CScript();
         scriptOpCost = 0;
@@ -456,7 +453,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
         }
         script << ScriptInt::fromIntUnchecked(1);
         if (!extraDepth) scriptOpCost += 101;
-        stacktype expectedStack;
+        StackT expectedStack;
         if (!extraDepth) expectedStack = {vtrue};
         CHECK_EVALSCRIPT({}, script, expectedStack, {0, 0, scriptOpCost},
                          {STANDARD_SCRIPT_VERIFY_FLAGS | SCRIPT_ENABLE_MAY2025},
@@ -467,7 +464,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript_with_sigchecks) {
     // https://gist.github.com/markblundeberg/c2c88d25d5f34213830e48d459cbfb44
     // (this is a simplified form)
     {
-        stacktype stack;
+        StackT stack;
         stack.assign(94, txsigecdsa);
         script = CScript();
         scriptOpCost = 0;
@@ -563,9 +560,9 @@ BOOST_AUTO_TEST_CASE(test_individual_opcode_counts) {
     struct Test {
         int line;
         const char *debugSnippet;
-        stacktype stack;
+        StackT stack;
         CScript script;
-        stacktype expectedStack;
+        StackT expectedStack;
         int sigChecks;
         int64_t hashIters;
         int64_t opCost;
@@ -589,8 +586,8 @@ BOOST_AUTO_TEST_CASE(test_individual_opcode_counts) {
                             | SCRIPT_ENABLE_MAY2025 | SCRIPT_VM_LIMITS_STANDARD |SCRIPT_64_BIT_INTEGERS
                             | SCRIPT_NATIVE_INTROSPECTION) & ~SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS;
 
-    auto ScriptToStack = [](const CScript &script) -> stacktype {
-        stacktype ret;
+    auto ScriptToStack = [](const CScript &script) -> StackT {
+        StackT ret;
         EvalScript(ret, script, flags, dummysigchecker);
         return ret;
     };
@@ -651,7 +648,7 @@ BOOST_AUTO_TEST_CASE(test_individual_opcode_counts) {
         MkT({valtype(10, 0xab)}, CScript() << OP_TOALTSTACK, {}, 0, 0, 100),// OP_TOALTSTACK
         MkT({valtype(10, 0xab)}, CScript() << OP_TOALTSTACK << OP_FROMALTSTACK, {valtype(10, 0xab)}, 0, 0, 210),// OP_FROMALTSTACK
         MkT({vtrue, vtrue}, CScript() << OP_2DROP, {}, 0, 0, 100),// OP_2DROP
-        MkT(stacktype(999, vtrue), CScript() << OP_2DROP, stacktype(997, vtrue), 0, 0, 100), // OP_2DROP (big stack)
+        MkT(StackT(999, vtrue), CScript() << OP_2DROP, StackT(997, vtrue), 0, 0, 100), // OP_2DROP (big stack)
         MkT({vtrue, vfalse}, CScript() << OP_2DUP, {vtrue, vfalse, vtrue, vfalse}, 0, 0, 101),// OP_2DUP
         MkT({vfalse, vfalse}, CScript() << OP_2DUP, {vfalse, vfalse, vfalse, vfalse}, 0, 0, 100),// OP_2DUP
         MkT({vtrue, vtrue}, CScript() << OP_2DUP, {vtrue, vtrue, vtrue, vtrue}, 0, 0, 102),// OP_2DUP
@@ -666,9 +663,9 @@ BOOST_AUTO_TEST_CASE(test_individual_opcode_counts) {
         MkT({vfalse}, CScript() << OP_IFDUP, {vfalse}, 0, 0, 100), // OP_IFDUP (false case)
         MkT({valtype(100)}, CScript() << OP_IFDUP, {valtype(100)}, 0, 0, 100), // OP_IFDUP (false case, non-canonical boolean false)
         MkT({valtype(2, 42)}, CScript() << OP_IFDUP, {valtype(2, 42), valtype(2, 42)}, 0, 0, 102), // OP_IFDUP (true case)
-        MkT(stacktype(999, vtrue), CScript() << OP_DEPTH, Append(stacktype(999, vtrue), "e703"_v), 0, 0, 102),// OP_DEPTH
-        MkT(stacktype(999, vtrue), CScript() << OP_DROP, stacktype(998, vtrue), 0, 0, 100),// OP_DROP
-        MkT({valtype(99, 0xd0)}, CScript() << OP_DUP, stacktype(2, valtype(99, 0xd0)), 0, 0, 199),// OP_DUP
+        MkT(StackT(999, vtrue), CScript() << OP_DEPTH, Append(StackT(999, vtrue), "e703"_v), 0, 0, 102),// OP_DEPTH
+        MkT(StackT(999, vtrue), CScript() << OP_DROP, StackT(998, vtrue), 0, 0, 100),// OP_DROP
+        MkT({valtype(99, 0xd0)}, CScript() << OP_DUP, StackT(2, valtype(99, 0xd0)), 0, 0, 199),// OP_DUP
         MkT({valtype(9), valtype(10), valtype(11)}, CScript() << OP_NIP, {valtype(9), valtype(11)}, 0, 0, 100),// OP_NIP
         MkT({valtype(9), valtype(10), valtype(11)}, CScript() << OP_OVER,
             {valtype(9), valtype(10), valtype(11), valtype(10)}, 0, 0, 110), // OP_OVER
@@ -820,7 +817,7 @@ BOOST_AUTO_TEST_CASE(test_individual_opcode_counts) {
     for (const Test &t : tests) {
         BOOST_TEST_CONTEXT(__FILE__ << ":" << t.line << "\n    ---> Test{ " << t.debugSnippet << " }") {
             ScriptExecutionMetrics m;
-            stacktype stack = t.stack;
+            StackT stack = t.stack;
             const bool r = EvalScript(stack, t.script, flags, *t.checker, m);
             BOOST_CHECK_EQUAL(r, t.expectedResult);
             BOOST_CHECK(stack == t.expectedStack);
