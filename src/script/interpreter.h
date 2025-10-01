@@ -1,12 +1,13 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2024 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #pragma once
 
 #include <primitives/transaction.h>
+#include <script/container_types.h>
 #include <script/script_error.h>
 #include <script/script_flags.h>
 #include <script/script_execution_context.h>
@@ -19,8 +20,6 @@
 #include <vector>
 
 class CPubKey;
-
-using StackT = std::vector<std::vector<uint8_t>>;
 
 /** Precompute sighash midstate to avoid quadratic hashing */
 struct PrecomputedTransactionData {
