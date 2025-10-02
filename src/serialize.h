@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -313,6 +314,14 @@ template <typename Stream>
 inline void Serialize(Stream &s, const Span<uint8_t> &span) {
     s.write(CharCast(span.data()), span.size());
 }
+template <typename Stream>
+inline void Serialize(Stream &s, const std::span<const uint8_t> &span) {
+    s.write(CharCast(span.data()), span.size());
+}
+template <typename Stream>
+inline void Serialize(Stream &s, const std::span<uint8_t> &span) {
+    s.write(CharCast(span.data()), span.size());
+}
 template <typename Stream> inline void Unserialize(Stream &s, int8_t &a) {
     a = ser_readdata8(s);
 }
@@ -395,6 +404,10 @@ template <typename Stream> inline void Unserialize(Stream &s, bool &a) {
 }
 template <typename Stream>
 inline void Unserialize(Stream &s, Span<uint8_t> &span) {
+    s.read(CharCast(span.data()), span.size());
+}
+template <typename Stream>
+inline void Unserialize(Stream &s, std::span<uint8_t> &span) {
     s.read(CharCast(span.data()), span.size());
 }
 
