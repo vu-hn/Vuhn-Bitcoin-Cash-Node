@@ -46,6 +46,8 @@ None
 
 - The old hashing algorithm (`hash_serialized`) which was used by the `gettxoutsetinfo` algorithm has been removed
   in favor of a new algorithm `hash_serialized_3` which is used by default instead.
+- Support for older macOS versions has been dropped. On Mac, the minimum supported version of macOS is macOS 13.3
+  (Ventura) or newer.
 
 ## New RPC methods
 
@@ -99,7 +101,7 @@ The following are limitations in this release of which users should be aware:
 Some issues could not be closed in time for release, but we are tracking all
 of them on our GitLab repository.
 
-- The minimum macOS version is 10.14 (Mojave).
+- The minimum macOS version is 13.3 (Ventura).
   Earlier macOS versions are no longer supported.
 
 - Windows users are recommended not to run multiple instances of bitcoin-qt

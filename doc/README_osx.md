@@ -26,15 +26,9 @@ headers and its libLTO.so rather than those from llvmgcc, as it was
 originally done in toolchain4.
 
 To complicate things further, all builds must target an Apple SDK. These SDKs
-are free to download, but not redistributable.
-To obtain it, register for a developer account, then download the [Xcode 7.3.1 dmg](https://developer.apple.com/devcenter/download.action?path=/Developer_Tools/Xcode_7.3.1/Xcode_7.3.1.dmg).
+are free to download. To obtain an Apple SDK,
+[visit this github repository](https://github.com/joseluisq/macosx-sdks/releases).
 
-This file is several gigabytes in size, but only a single directory inside is
-needed:
-
-```
-Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.*.sdk
-```
 
 This directory has been extracted and packaged into a separate tarball.
 [See here for download instructions.](gitian-building.md#macos-code-signing)

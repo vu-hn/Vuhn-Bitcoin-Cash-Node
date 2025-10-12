@@ -57,8 +57,8 @@ done like this:
 ```sh
 make download
 mkdir SDKs
-tar -C SDKs -xf /path/to/MacOSX10.15.sdk.tar.xz
-make build-osx HOST=x86_64-apple-darwin16
+tar -C SDKs -xf /path/to/MacOSX13.3.sdk.tar.xz
+make build-osx HOST=x86_64-apple-darwin22
 ```
 
 Building the node against these dependencies is again a matter of (starting
@@ -86,7 +86,7 @@ sudo apt-get install build-essential autoconf automake cmake curl git libtool ni
 Install the following packages:
 
 ```sh
-sudo apt-get install imagemagick libbz2-dev libcap-dev librsvg2-bin libtiff-tools python3-setuptools clang lld llvm zip xorriso
+sudo apt-get install imagemagick libbz2-dev libcap-dev librsvg2-bin libtiff-tools python3-setuptools clang lld llvm zip xorriso cmake ninja-build systemtap-sdt-dev libbsd-dev linux-libc-dev
 ```
 
 Obtain the same SDK packge that is used in the gitian build (refer to `gitian-building.md` for download instructions).
@@ -138,8 +138,8 @@ In this example, `-DBUILD_BITCOIN_WALLET=OFF` should be passed to the `cmake`
 command line to ensure that the build will not fail due to missing dependencies.
 
 NOTE: The SDK_PATH should be set to the parent folder in which the
-`MacOSX10.15.sdk/` is located. Alternatively, you can unpack the SDK within
-the `depends/SDKs/` folder or create a symbolic link named `MacOSX10.15.sdk/`
+`MacOSX13.3.sdk/` is located. Alternatively, you can unpack the SDK within
+the `depends/SDKs/` folder or create a symbolic link named `MacOSX13.3.sdk/`
 to it from there.
 
 Additional targets:

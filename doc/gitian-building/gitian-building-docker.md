@@ -41,9 +41,9 @@ git clone -b macos_support_no_debian_cache https://github.com/cculianu/gitian-bu
 # extracted from the free SDK.
 mkdir -p gitian-builder/inputs
 (cd gitian-builder/inputs
-curl -LO https://github.com/joseluisq/macosx-sdks/releases/download/10.15/MacOSX10.15.sdk.tar.xz
-echo "aee7b132a4b10cc26ab9904706412fd0907f5b8b660251e465647d8763f9f009 MacOSX10.15.sdk.tar.xz" | sha256sum -c)
-# This should echo "MacOSX10.15.sdk.tar.xz: OK"
+curl -LO https://github.com/joseluisq/macosx-sdks/releases/download/13.3/MacOSX13.3.sdk.tar.xz
+echo "518e35eae6039b3f64e8025f4525c1c43786cc5cf39459d609852faf091e34be MacOSX13.3.sdk.tar.xz" | sha256sum -c
+# This should echo "MacOSX13.3.sdk.tar.xz: OK"
 ```
 
 ## Build binaries
