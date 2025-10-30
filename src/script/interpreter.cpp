@@ -169,7 +169,7 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &script, uint32_t
                     const BaseSignatureChecker &checker, ScriptExecutionMetrics &metrics, ScriptError *serror) {
     // UsesBigInt template arg must match flags
     assert(UsesBigInt == bool(flags & SCRIPT_ENABLE_MAY2025));
-    using ScriptNumType = std::conditional_t<UsesBigInt, ScriptBigInt, CScriptNum>;
+    using ScriptNumType = std::conditional_t<UsesBigInt, FastBigNum, CScriptNum>;
 
     static auto const bnZero = ScriptNumType::fromIntUnchecked(0);
     static const valtype vchFalse(0);
@@ -784,27 +784,25 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &script, uint32_t
 
                         switch (opcode) {
                             case OP_1ADD: {
-                                auto res = bn.safeAdd(1);
-                                if ( ! res) {
+                                const bool ok = bn.safeIncr();
+                                if ( ! ok) {
                                     return set_error(serror, invalidNumberRangeError);
                                 }
-                                bn = std::move(*res);
                                 break;
                             }
                             case OP_1SUB: {
-                                auto res = bn.safeSub(1);
-                                if ( ! res) {
+                                const bool ok = bn.safeDecr();
+                                if ( ! ok) {
                                     return set_error(serror, invalidNumberRangeError);
                                 }
-                                bn = std::move(*res);
                                 break;
                             }
                             case OP_NEGATE:
-                                bn = -bn;
+                                bn.negate();
                                 break;
                             case OP_ABS:
                                 if (bn < bnZero) {
-                                    bn = -bn;
+                                    bn.negate();
                                 }
                                 break;
                             case OP_NOT:
@@ -851,7 +849,7 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &script, uint32_t
                         }
                         const valtype &vch1 = stacktop(-2);
                         const valtype &vch2 = stacktop(-1);
-                        ScriptNumType const bn1(vch1, fRequireMinimal, maxIntegerSize);
+                        ScriptNumType bn1(vch1, fRequireMinimal, maxIntegerSize);
                         ScriptNumType const bn2(vch2, fRequireMinimal, maxIntegerSize);
                         auto bn = ScriptNumType::fromIntUnchecked(0);
                         uint32_t quadraticOpCost = 0u; // for OP_MUL, OP_DIV, and OP_MOD
@@ -862,31 +860,31 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &script, uint32_t
 
                         switch (opcode) {
                             case OP_ADD: {
-                                auto res = bn1.safeAdd(bn2);
-                                if ( ! res) {
+                                const bool ok = bn1.safeAddInPlace(bn2);
+                                if ( ! ok) {
                                     return set_error(serror, invalidNumberRangeError);
                                 }
-                                bn = std::move(*res);
+                                bn = std::move(bn1);
                                 pushCostFactor = 2u;
                                 break;
                             }
 
                             case OP_SUB: {
-                                auto res = bn1.safeSub(bn2);
-                                if ( ! res) {
+                                const bool ok = bn1.safeSubInPlace(bn2);
+                                if ( ! ok) {
                                     return set_error(serror, invalidNumberRangeError);
                                 }
-                                bn = std::move(*res);
+                                bn = std::move(bn1);
                                 pushCostFactor = 2u;
                                 break;
                             }
 
                             case OP_MUL: {
-                                auto res = bn1.safeMul(bn2);
-                                if ( ! res) {
+                                const bool ok = bn1.safeMulInPlace(bn2);
+                                if ( ! ok) {
                                     return set_error(serror, invalidNumberRangeError);
                                 }
-                                bn = std::move(*res);
+                                bn = std::move(bn1);
                                 quadraticOpCost = vch1.size() * vch2.size();
                                 pushCostFactor = 2u;
                                 break;
@@ -894,20 +892,20 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &script, uint32_t
 
                             case OP_DIV:
                                 // denominator must not be 0
-                                if (bn2 == 0) {
+                                if (bn2 == bnZero) {
                                     return set_error(serror, ScriptError::DIV_BY_ZERO);
                                 }
-                                bn = bn1 / bn2;
+                                bn = std::move(bn1 /= bn2);
                                 quadraticOpCost = vch1.size() * vch2.size();
                                 pushCostFactor = 2u;
                                 break;
 
                             case OP_MOD:
                                 // divisor must not be 0
-                                if (bn2 == 0) {
+                                if (bn2 == bnZero) {
                                     return set_error(serror, ScriptError::MOD_BY_ZERO);
                                 }
-                                bn = bn1 % bn2;
+                                bn = std::move(bn1 %= bn2);
                                 quadraticOpCost = vch1.size() * vch2.size();
                                 pushCostFactor = 2u;
                                 break;
