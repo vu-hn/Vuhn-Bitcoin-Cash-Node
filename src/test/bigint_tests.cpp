@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Bitcoin developers
+// Copyright (c) 2024-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1471,7 +1471,7 @@ BOOST_AUTO_TEST_CASE(scriptnum_checks) {
             const BigInt bi(numStr);
             BOOST_CHECK_EQUAL(bi.ToString(), numStr);
             auto res = ScriptBigInt::fromInt(bi);
-            BOOST_CHECK_EQUAL(ScriptBigInt::validBigIntRange(bi), bool(res));
+            BOOST_CHECK_EQUAL(ScriptBigInt::validRange(bi), bool(res));
             if (!res) {
                 // If it doesn't work with fromInt(), it is outside the consensus range, ensure that is the case, and skip
                 BOOST_CHECK_GT(bi.serialize().size(), ScriptBigInt::MAXIMUM_ELEMENT_SIZE_BIG_INT);
