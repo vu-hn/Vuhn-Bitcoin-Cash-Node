@@ -276,7 +276,7 @@ static bool rest_block(const Config &config, HTTPRequest *req,
 
 static bool rest_block_extended_with_patterns(const std::any &, Config &config, HTTPRequest *req,
                                               const std::string &strURIPart) {
-    return rest_block(config, req, strURIPart, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS);
+    return rest_block(config, req, strURIPart, TransactionFormatOptions(BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT).WithPatterns());
 }
 
 static bool rest_block_extended(const std::any& context, Config &config, HTTPRequest *req,
@@ -367,7 +367,7 @@ static bool rest_mempool_contents(const std::any& context, Config &config, HTTPR
 }
 
 static bool rest_tx(const std::any& context, Config &config, HTTPRequest *req,
-                    const std::string &strURIPart) {
+                    const std::string &strURIPart, bool fPatterns = false) {
     if (!CheckWarmup(req)) {
         return false;
     }
@@ -417,7 +417,7 @@ static bool rest_tx(const std::any& context, Config &config, HTTPRequest *req,
 
         case RetFormat::JSON: {
             const bool hasHash = !hashBlock.IsNull();
-            UniValue::Object objTx = TransactionToUniv(config, *tx, nullptr, TransactionFormatOptions().WithHex(), hasHash);
+            UniValue::Object objTx = TransactionToUniv(config, *tx, nullptr, TransactionFormatOptions().WithHex().WithPatterns(fPatterns), hasHash);
             if (hasHash) {
                 objTx.emplace_back("blockhash", hashBlock.GetHex());
             }
@@ -665,7 +665,10 @@ static const struct {
     bool (*handler)(const std::any& context, Config &config, HTTPRequest *req,
                     const std::string &strReq);
 } uri_prefixes[] = {
-    {"/rest/tx/", rest_tx},
+    {"/rest/tx/withpatterns/", [](const std::any& context, Config &config, HTTPRequest *req,
+                                  const std::string &strReq) { return rest_tx(context, config, req, strReq, true); }},
+    {"/rest/tx/",              [](const std::any& context, Config &config, HTTPRequest *req,
+                                  const std::string &strReq) { return rest_tx(context, config, req, strReq, false); }},
     {"/rest/block/notxdetails/", rest_block_notxdetails},
     {"/rest/block/withpatterns/", rest_block_extended_with_patterns},
     {"/rest/block/", rest_block_extended},

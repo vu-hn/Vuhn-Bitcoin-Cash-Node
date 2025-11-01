@@ -29,9 +29,6 @@ TransactionFormatOptions::TransactionFormatOptions(const BlockTxVerbosity verbos
         case SHOW_TXID:
             block_level.txids_only = true;
             break;
-        case SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS:
-            include_patterns = true;
-            [[fallthrough]];
         case SHOW_DETAILS_AND_PREVOUT:
             prevout_options.emplace();
             prevout_options->nest_prevouts = prevout_options->include_height = prevout_options->include_generated = true;

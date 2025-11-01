@@ -21,12 +21,16 @@ None
 - A new "coin stats" index has been added, which may be enabled with the command-line option `-coinstatsindex`
   (default: disabled). If enabled, this index keeps track of various UTXO-set releated statistics for each block, which
   can be queried with the `gettxoutsetinfo` RPC.
-- A new verbosity level 4 has been added to the `getblock` RPC method.
-  - This is identical to `verbosity=3`, except that additionally all input and output scripts contain an additional
-    key, `byteCodePattern` which is a JSON object that describes the script's pattern and "fingerprint". This is useful
-    for categorizing the script in question. For more information on what is inside this key's object, see the RPC help
-    for `getblock` and [this discussion on Bitcoin Cash Research](https://bitcoincashresearch.org/t/smart-contract-fingerprinting-a-method-for-pattern-recognition-and-analysis-in-bitcoin-cash/1441).
-  - A REST endpoint `/block/withpatterns/<HASH>` has been added which corresponds to `getblock` with `verbosity=4`.
+- A new `patterns` flag has been added to the `getblock` and `getrawtransaction` RPC methods.
+  - This is usable with all verbose outputs (>=2 for `getblock`, >=1 for `getrawtransaction`), and if set then all input
+    and output scripts contain an additional key, `byteCodePattern` which is a JSON object that describes the script's
+    pattern and "fingerprint". This is useful for categorizing the script in question. For more information on what is
+    inside this key's object, see the RPC help for `getblock` and `getrawtransaction`, and [this discussion on Bitcoin Cash Research](https://bitcoincashresearch.org/t/smart-contract-fingerprinting-a-method-for-pattern-recognition-and-analysis-in-bitcoin-cash/1441).
+  - If used with verbosity levels that include prevouts (`getblock` verbosity>=3 and `getrawtransaction` verbosity==2)
+    and if the input is spending a P2SH prevout, then additionally there will a `redeemScript` object having its own `byteCodePattern`
+    and additionally having a `p2shType` key.
+  - A REST endpoint `/block/withpatterns/<HASH>` has been added which corresponds to `getblock` RPC with `verbosity=3 patterns=true`.
+  - A REST endpoint `/tx/withpatterns/<HASH>` has been added which corresponds to `/tx/` with patterns added.
 
 ## Deprecated functionality
 

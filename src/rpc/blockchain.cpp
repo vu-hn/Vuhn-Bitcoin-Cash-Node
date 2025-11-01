@@ -782,15 +782,16 @@ static UniValue getblockhash(const Config &config,
     return pblockindex->GetBlockHash().GetHex();
 }
 
-static std::string ablaStateHelpCommon(bool trailingComma) {
+static std::string ablaStateHelpCommon(bool trailingComma, size_t extraSpaceLeft=0, size_t extraSpaceMiddle=0) {
+    const std::string spL(extraSpaceLeft, ' '), spM(extraSpaceMiddle, ' ');
     return strprintf(
-        "  \"ablastate\" : {        (json object, optional) The block's ABLA state\n"
-        "    \"epsilon\" : n,       (numeric) ABLA state epsilon value\n"
-        "    \"beta\" : n,          (numeric) ABLA state beta value\n"
-        "    \"blocksize\" : n,     (numeric) The size of this block\n"
-        "    \"blocksizelimit\" : n,        (numeric) The size limit for this block\n"
-        "    \"nextblocksizelimit\" : n,    (numeric) The size limit for the next block\n"
-        "  }%s\n", trailingComma ? "," : "");
+        "%s  \"ablastate\" : {                %s(json object, optional) The block's ABLA state\n"
+        "%s    \"epsilon\" : n,               %s(numeric) ABLA state epsilon value\n"
+        "%s    \"beta\" : n,                  %s(numeric) ABLA state beta value\n"
+        "%s    \"blocksize\" : n,             %s(numeric) The size of this block\n"
+        "%s    \"blocksizelimit\" : n,        %s(numeric) The size limit for this block\n"
+        "%s    \"nextblocksizelimit\" : n,    %s(numeric) The size limit for the next block\n"
+        "%s  }%s\n", spL, spM, spL, spM, spL, spM, spL, spM, spL, spM, spL, spM, spL, trailingComma ? "," : "");
 }
 
 /// Requires cs_main; called by getblock() and ParseHashOrHeight(disallow_pruned=true)
@@ -854,44 +855,30 @@ static UniValue getblockheader(const Config &config,
                 .ToString() +
             "\nResult (for verbose = true):\n"
             "{\n"
-            "  \"hash\" : \"hash\",     (string) the block hash (same as "
-            "provided)\n"
-            "  \"confirmations\" : n,   (numeric) The number of confirmations, "
-            "or -1 if the block is not on the main chain\n"
-            "  \"height\" : n,          (numeric) The block height or index\n"
-            "  \"version\" : n,         (numeric) The block version\n"
-            "  \"versionHex\" : \"00000000\", (string) The block version "
-            "formatted in hexadecimal\n"
-            "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
-            "  \"time\" : ttt,          (numeric) The block time in seconds "
-            "since epoch (Jan 1 1970 GMT)\n"
-            "  \"mediantime\" : ttt,    (numeric) The median block time in "
-            "seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"nonce\" : n,           (numeric) The nonce\n"
-            "  \"bits\" : \"1d00ffff\", (string) The bits\n"
-            "  \"difficulty\" : x.xxx,  (numeric) The difficulty\n"
-            "  \"chainwork\" : \"0000...1f3\"     (string) Expected number of "
-            "hashes required to produce the current chain (in hex)\n"
-            "  \"nTx\" : n,             (numeric) The number of transactions "
-            "in the block.\n"
-            "  \"previousblockhash\" : \"hash\",  (string) The hash of the "
-            "previous block\n"
-            "  \"nextblockhash\" : \"hash\",      (string) The hash of the "
-            "next block,\n"
+            "  \"hash\" : \"hash\",               (string) the block hash (same as provided)\n"
+            "  \"confirmations\" : n,           (numeric) The number of confirmations, or -1 if the block is not on the main chain\n"
+            "  \"height\" : n,                  (numeric) The block height or index\n"
+            "  \"version\" : n,                 (numeric) The block version\n"
+            "  \"versionHex\" : \"00000000\",     (string) The block version formatted in hexadecimal\n"
+            "  \"merkleroot\" : \"xxxx\",         (string) The merkle root\n"
+            "  \"time\" : ttt,                  (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"mediantime\" : ttt,            (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"nonce\" : n,                   (numeric) The nonce\n"
+            "  \"bits\" : \"1d00ffff\",           (string) The bits\n"
+            "  \"difficulty\" : x.xxx,          (numeric) The difficulty\n"
+            "  \"chainwork\" : \"0000...1f3\"     (string) Expected number of hashes required to produce the current chain (in hex)\n"
+            "  \"nTx\" : n,                     (numeric) The number of transactions in the block.\n"
+            "  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n"
+            "  \"nextblockhash\" : \"hash\",      (string) The hash of the next block,\n"
             + ablaStateHelpCommon(false) +
             "}\n"
             "\nResult (for verbose=false):\n"
-            "\"data\"             (string) A string that is serialized, "
-            "hex-encoded data for block 'hash'.\n"
+            "\"data\"                           (string) A string that is serialized, hex-encoded data for block 'hash'.\n"
             "\nExamples:\n" +
             HelpExampleCli("getblockheader", "1000") +
             HelpExampleRpc("getblockheader", "1000") +
-            HelpExampleCli("getblockheader", "'\"00000000c937983704a73af28acdec3"
-                                             "7b049d214adbda81d7e2a3dd146f6ed09"
-                                             "\"'") +
-            HelpExampleRpc("getblockheader", "\"00000000c937983704a73af28acdec3"
-                                             "7b049d214adbda81d7e2a3dd146f6ed09"
-                                             "\""));
+            HelpExampleCli("getblockheader", "'\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"'") +
+            HelpExampleRpc("getblockheader", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\""));
     }
 
     const CBlockIndex *tip{};
@@ -962,7 +949,7 @@ static std::vector<uint8_t> ReadRawBlockUnchecked(const Config &config, const CB
 
 static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
     if (request.fHelp || request.params.size() < 1 ||
-        request.params.size() > 2) {
+        request.params.size() > 3) {
         throw std::runtime_error(
             RPCHelpMan{"getblock",
                 "\nIf verbosity is 0 or false, returns a string that is serialized, hex-encoded data for block 'hash'.\n"
@@ -973,69 +960,59 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
                 {
                     {"blockhash", RPCArg::Type::STR_HEX, /* opt */ false, /* default_val */ "", "The block hash"},
                     {"verbosity", RPCArg::Type::NUM, /* opt */ true, /* default_val */ "1", "0 for hex-encoded data, 1 for a json object, and 2 for json object with transaction data, and 3 for JSON object with transaction data including prevout information for inputs"},
+                    {"patterns", RPCArg::Type::BOOL, /* opt */ true, /* default_val */ "false", "If true then byteCodePattern and redeemScript objects will be added"},
                 }}
                 .ToString() +
             "\nResult (for verbosity = 0):\n"
-            "\"data\"                   (string) A string that is serialized, "
-            "hex-encoded data for block 'hash'.\n"
+            "\"data\"                                  (string) A string that is serialized, hex-encoded data for block 'hash'.\n"
             "\nResult (for verbosity = 1):\n"
             "{\n"
-            "  \"hash\" : \"hash\",       (string) The block hash (same as "
-            "provided)\n"
-            "  \"confirmations\" : n,   (numeric) The number of confirmations, "
-            "or -1 if the block is not on the main chain\n"
-            "  \"size\" : n,            (numeric) The block size\n"
-            "  \"height\" : n,          (numeric) The block height or index\n"
-            "  \"version\" : n,         (numeric) The block version\n"
-            "  \"versionHex\" : \"00000000\", (string) The block version "
-            "formatted in hexadecimal\n"
-            "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
-            "  \"tx\" : [               (array of string) The transaction ids\n"
-            "     \"transactionid\"     (string) The transaction id\n"
+            "  \"hash\" : \"hash\",                      (string) The block hash (same as provided)\n"
+            "  \"confirmations\" : n,                  (numeric) The number of confirmations, or -1 if the block is not on the main chain\n"
+            "  \"size\" : n,                           (numeric) The block size\n"
+            "  \"height\" : n,                         (numeric) The block height or index\n"
+            "  \"version\" : n,                        (numeric) The block version\n"
+            "  \"versionHex\" : \"00000000\",            (string) The block version formatted in hexadecimal\n"
+            "  \"merkleroot\" : \"xxxx\",                (string) The merkle root\n"
+            "  \"tx\" : [                              (array of string) The transaction ids\n"
+            "     \"transactionid\"                    (string) The transaction id\n"
             "     ,...\n"
             "  ],\n"
-            "  \"time\" : ttt,          (numeric) The block time in seconds "
-            "since epoch (Jan 1 1970 GMT)\n"
-            "  \"mediantime\" : ttt,    (numeric) The median block time in "
-            "seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"nonce\" : n,           (numeric) The nonce\n"
-            "  \"bits\" : \"1d00ffff\",   (string) The bits\n"
-            "  \"difficulty\" : x.xxx,  (numeric) The difficulty\n"
-            "  \"chainwork\" : \"xxxx\",  (string) Expected number of hashes "
-            "required to produce the chain up to this block (in hex)\n"
-            "  \"nTx\" : n,             (numeric) The number of transactions "
-            "in the block.\n"
-            "  \"previousblockhash\" : \"hash\",  (string) The hash of the "
-            "previous block\n"
-            "  \"nextblockhash\" : \"hash\"       (string) The hash of the "
-            "next block,\n"
-            + ablaStateHelpCommon(false) +
+            "  \"time\" : ttt,                         (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"mediantime\" : ttt,                   (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"nonce\" : n,                          (numeric) The nonce\n"
+            "  \"bits\" : \"1d00ffff\",                  (string) The bits\n"
+            "  \"difficulty\" : x.xxx,                 (numeric) The difficulty\n"
+            "  \"chainwork\" : \"xxxx\",                 (string) Expected number of hashes required to produce the chain up to this block (in hex)\n"
+            "  \"nTx\" : n,                            (numeric) The number of transactions in the block.\n"
+            "  \"previousblockhash\" : \"hash\",         (string) The hash of the previous block\n"
+            "  \"nextblockhash\" : \"hash\"              (string) The hash of the next block,\n"
+            + ablaStateHelpCommon(false, 0, 7) +
             "}\n"
             "\nResult (for verbosity = 2):\n"
             "{\n"
-            "  ...,                   Same output as verbosity = 1\n"
-            "  \"tx\" : [               (json array)\n"
-            "    {                    (json object)\n"
-            "      ...,               The transactions in the format of the getrawtransaction RPC; different from verbosity "
-            "= 1 \"tx\" result\n"
-            "      \"fee\" : n          (numeric) The transaction fee in " + CURRENCY_UNIT + ", omitted if block undo data is not available\n"
+            "  ...,                                  Same output as verbosity = 1\n"
+            "  \"tx\" : [                              (json array)\n"
+            "    {                                   (json object)\n"
+            "      ...,                              The transactions in the format of the getrawtransaction RPC; different from verbosity = 1 \"tx\" result\n"
+            "      \"fee\" : n                         (numeric) The transaction fee in " + CURRENCY_UNIT + ", omitted if block undo data is not available\n"
             "    },\n"
             "    ...\n"
             "  ],\n"
-            "  ...                    Same output as verbosity = 1\n"
+            "  ...                                   Same output as verbosity = 1\n"
             "}\n"
             "\nResult (for verbosity >= 3):\n"
             "{\n"
-            "  ...,                   Same output as verbosity = 2\n"
-            "  \"tx\" : [               (json array)\n"
-            "    {                    (json object)\n"
-            "      ...,               Same output as verbosity = 2\n"
-            "      \"vin\" : [          (json array)\n"
-            "        {                (json object)\n"
-            "          ...,           Same output as verbosity = 2\n"
+            "  ...,                                  Same output as verbosity = 2\n"
+            "  \"tx\" : [                              (json array)\n"
+            "    {                                   (json object)\n"
+            "      ...,                              Same output as verbosity = 2\n"
+            "      \"vin\" : [                         (json array)\n"
+            "        {                               (json object)\n"
+            "          ...,                          Same output as verbosity = 2\n"
             "          \"scriptSig\" : {               (json object, optional) Only for non-coinbase tx\n"
             "            ...,                        Same output as verbosity = 2 \n"
-            "            \"byteCodePattern\" : {       (json object, optional) Only for verbosity >= 4\n"
+            "            \"byteCodePattern\" : {       (json object, optional) Only for patterns == true\n"
             "              \"fingerprint\" : \"str\",    (string) Single SHA-256 hash of script pattern\n"
             "              \"pattern\" : \"str\",        (string) Hex-encoded script pattern\n"
             "              \"patternAsm\" : \"str\",     (string) Script pattern asm\n"
@@ -1044,7 +1021,7 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
             "              ],\n"
             "              \"error\": true             (boolean, optional) Only if there was an error parsing the script\n"
             "            },\n"
-            "            \"redeemScript\" : {          (json object, optional) Only for verbosity >= 4 and only for p2sh inputs\n"
+            "            \"redeemScript\" : {          (json object, optional) Only for patterns == true and only for p2sh inputs\n"
             "              \"asm\" : \"str\",            (string) The p2sh redeem script asm\n"
             "              \"hex\" : \"str\",            (string) The p2sh redeem script hex\n"
             "              \"byteCodePattern\" : {     (json object) Redeem script byte code pattern information\n"
@@ -1062,7 +1039,7 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
             "              \"hex\" : \"str\",            (string) The hex\n"
             "              \"type\" : \"str\",           (string) The type (one of: nonstandard, pubkey, pubkeyhash, scripthash, multisig, nulldata)\n"
             "              \"address\" : \"str\"         (string, optional) The Bitcoin Cash address (only if well-defined address exists)\n"
-            "              \"byteCodePattern\" : {...} (json object) Only for verbosity >= 4; byte code pattern information\n"
+            "              \"byteCodePattern\" : {...} (json object, optional) Only for patterns == true; byte code pattern information\n"
             "            },\n"
             "            \"tokenData\" : {             (json object, optional) CashToken data (only if the input contained a token)\n"
             "              \"category\" : \"hex\",       (string) Token id\n"
@@ -1076,17 +1053,17 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
             "        },\n"
             "        ...\n"
             "      ],\n"
-            "      \"vout\" : [...]     Same output as verbosity = 2; verbosity >= 4 has additional \"byteCodePattern\" information for all \"scriptPubKey\" scripts\n"
+            "      \"vout\" : [...]                    Same output as verbosity = 2; patterns == true has additional \"byteCodePattern\" information for all \"scriptPubKey\" scripts\n"
             "    },\n"
             "    ...\n"
             "  ],\n"
-            "  ...                    Same output as verbosity = 2\n"
+            "  ...                                   Same output as verbosity = 2\n"
             "}\n"
             "\nExamples:\n" +
-            HelpExampleCli("getblock", "\"00000000c937983704a73af28acdec37b049d"
-                                       "214adbda81d7e2a3dd146f6ed09\"") +
-            HelpExampleRpc("getblock", "\"00000000c937983704a73af28acdec37b049d"
-                                       "214adbda81d7e2a3dd146f6ed09\""));
+            HelpExampleCli("getblock", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\"") +
+            HelpExampleCli("getblock", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\" 2") +
+            HelpExampleCli("getblock", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\" 2 true") +
+            HelpExampleRpc("getblock", "\"00000000c937983704a73af28acdec37b049d214adbda81d7e2a3dd146f6ed09\""));
     }
 
     BlockHash hash(ParseHashV(request.params[0], "blockhash"));
@@ -1098,6 +1075,11 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
         } else {
             verbosity = request.params[1].get_int();
         }
+    }
+
+    bool fPatterns = false;
+    if (!request.params[2].isNull()) {
+        fPatterns = request.params[2].get_bool();
     }
 
     const CBlockIndex *pblockindex{};
@@ -1124,13 +1106,12 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
         switch (verbosity) {
             case 1: return SHOW_TXID;
             case 2: return SHOW_DETAILS;
-            case 3: return SHOW_DETAILS_AND_PREVOUT;
-            /* verbosity >= 4 */
-            default: return SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS;
+            /* verbosity >= 3 */
+            default: return SHOW_DETAILS_AND_PREVOUT;
         }
     }();
 
-    return blockToJSON(config, block, tip, pblockindex, blockTxVerbosity);
+    return blockToJSON(config, block, tip, pblockindex, TransactionFormatOptions(blockTxVerbosity).WithPatterns(fPatterns));
 }
 
 static UniValue pruneblockchain(const Config &config,
@@ -3005,7 +2986,7 @@ static const ContextFreeRPCCommand commands[] = {
     //  ------------------- ------------------------  ----------------------  ----------
     { "blockchain",         "finalizeblock",          finalizeblock,          {"blockhash"} },
     { "blockchain",         "getbestblockhash",       getbestblockhash,       {} },
-    { "blockchain",         "getblock",               getblock,               {"blockhash","verbosity|verbose"} },
+    { "blockchain",         "getblock",               getblock,               {"blockhash","verbosity|verbose","patterns"} },
     { "blockchain",         "getblockchaininfo",      getblockchaininfo,      {} },
     { "blockchain",         "getblockcount",          getblockcount,          {} },
     { "blockchain",         "getblockhash",           getblockhash,           {"height"} },

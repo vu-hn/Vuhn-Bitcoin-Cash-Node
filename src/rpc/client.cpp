@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -83,12 +83,14 @@ static const CRPCConvertParam vRPCConvertParams[] = {
     {"listunspent", 4, "query_options"},
     {"getblock", 1, "verbosity"},
     {"getblock", 1, "verbose"},
+    {"getblock", 2, "patterns"},
     {"getblockheader", 0, "blockhash"},
     {"getblockheader", 0, "hash_or_height"},
     {"getblockheader", 1, "verbose"},
     {"getchaintxstats", 0, "nblocks"},
     {"gettransaction", 1, "include_watchonly"},
     {"getrawtransaction", 1, "verbose"},
+    {"getrawtransaction", 3, "patterns"},
     {"createrawtransaction", 0, "inputs"},
     {"createrawtransaction", 1, "outputs"},
     {"createrawtransaction", 2, "locktime"},
