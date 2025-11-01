@@ -29,8 +29,7 @@ namespace token { class OutputData; struct SafeAmount; }
 enum class BlockTxVerbosity {
     SHOW_TXID,                                      //!< Only TXID for each transaction
     SHOW_DETAILS,                                   //!< Include TXID, inputs, outputs, and other common transaction information
-    SHOW_DETAILS_AND_PREVOUT,                       //!< The same as previous option with information about prevouts if available
-    SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS    //!< The same as previous option with information about script byte code patterns
+    SHOW_DETAILS_AND_PREVOUT                        //!< The same as previous option with information about prevouts if available
 };
 
 /**
@@ -58,6 +57,7 @@ struct TransactionFormatOptions {
     } block_level;
 
     TransactionFormatOptions& WithHex(bool enable = true) { include_hex = enable; return *this; }
+    TransactionFormatOptions& WithPatterns(bool enable = true) { include_patterns = enable; return *this; }
 
     TransactionFormatOptions() noexcept = default;
     // Implicit conversion from BlockTxVerbosity

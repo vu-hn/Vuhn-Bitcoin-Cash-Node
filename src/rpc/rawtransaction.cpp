@@ -200,7 +200,7 @@ static CTxUndo GetTxUndo(const Config &config, const CTransaction &tx, bool &f_t
 static UniValue getrawtransaction(const Config &config,
                                   const JSONRPCRequest &request) {
     if (request.fHelp || request.params.size() < 1 ||
-        request.params.size() > 3) {
+        request.params.size() > 4) {
         throw std::runtime_error(
             RPCHelpMan{"getrawtransaction",
                 "\nNOTE: By default this function only works for mempool transactions. If the -txindex option is\n"
@@ -208,107 +208,118 @@ static UniValue getrawtransaction(const Config &config,
                 "is known, its hash can be provided even for nodes without -txindex. Note that if a blockhash is\n"
                 "provided, only that block will be searched and if the transaction is in the mempool or other\n"
                 "blocks, or if this node does not have the given block available, the transaction will not be found.\n"
-            "DEPRECATED: for now, it also works for transactions with unspent outputs.\n"
+                "DEPRECATED: for now, it also works for transactions with unspent outputs.\n"
 
-            "\nReturn the raw transaction data.\n"
-            "\nIf verbose is 'false' or omitted, returns a string that is serialized, hex-encoded data for 'txid'.\n"
-            "\nIf verbose is 'true', returns an Object with information about 'txid'.\n"
-            "\nIf verbose is a numeric value, then it indicates the verbosity level:\n"
-            "* Level 0: Same as verbose=false\n"
-            "* Level 1: Same as verbose=true\n"
-            "* Level 2: Input value and transaction fee data will be made available\n"
-            "  - This operation will lookup the input transactions loading the data\n"
-            "    from disk if necessary, which might be slow. Also, it might fail if\n"
-            "    this data is not available (due to pruning or no -txindex enabled).\n"
+                "\nReturn the raw transaction data.\n"
+                "\nIf verbose is 'false' or omitted, returns a string that is serialized, hex-encoded data for 'txid'.\n"
+                "\nIf verbose is 'true', returns an Object with information about 'txid'.\n"
+                "\nIf verbose is a numeric value, then it indicates the verbosity level:\n"
+                "* Level 0: Same as verbose=false\n"
+                "* Level 1: Same as verbose=true\n"
+                "* Level 2: Input value and transaction fee data will be made available\n"
+                "  - This operation will lookup the input transactions loading the data\n"
+                "    from disk if necessary, which might be slow. Also, it might fail if\n"
+                "    this data is not available (due to pruning or no -txindex enabled).\n"
+                "\nIf patterns is true, then verbose outputs will additionally include a byteCodePattern object for\n"
+                "each script (scriptSig, prevout and output scriptPubKey). When used with verbosity=2 then inputs\n"
+                "spending from P2SH prevouts will additionally include a redeemScript object, with its own\n"
+                "byteCodePattern object nested inside.\n"
                 ,
                 {
                     {"txid", RPCArg::Type::STR_HEX, /* opt */ false, /* default_val */ "", "The transaction id"},
-                    {"verbose", RPCArg::Type::BOOL, /* opt */ true, /* default_val */ "false", "If false, return a string, otherwise return a json object"},
-                    {"blockhash", RPCArg::Type::STR_HEX, /* opt */ true, /* default_val */ "", "The block in which to look for the transaction"},
+                    {"verbosity", RPCArg::Type::NUM, /* opt */ true, /* default_val */ "false", "If false or 0, return a string, otherwise return a json object"},
+                    {"blockhash", RPCArg::Type::STR_HEX, /* opt */ true, /* default_val */ "", "The block in which to look for the transaction, use \"\" to skip"},
+                    {"patterns", RPCArg::Type::BOOL, /* opt */ true, /* default_val */ "false", "If true then byteCodePattern and redeemScript objects will be added"},
                 }}
                 .ToString() +
             "\nResult (if verbose is not set or set to false):\n"
-            "\"data\"      (string) The serialized, hex-encoded data for "
-            "'txid'\n"
+            "\"data\"      (string) The serialized, hex-encoded data for 'txid'\n"
 
             "\nResult (if verbose is set to true, or numeric value indicating verbosity level greater than 0):\n"
             "{\n"
-            "  \"hex\" : \"data\",       (string) The serialized, hex-encoded "
-            "data for 'txid'\n"
-            "  \"txid\" : \"id\",        (string) The transaction id (same as "
-            "provided)\n"
-            "  \"hash\" : \"id\",        (string) The transaction hash\n"
-            "  \"size\" : n,             (numeric) The serialized transaction "
-            "size\n"
-            "  \"version\" : n,          (numeric) The version\n"
-            "  \"locktime\" : ttt,       (numeric) The lock time\n"
-            "  \"vin\" : [               (array of json objects)\n"
+            "  \"hex\" : \"data\",                    (string) The serialized, hex-encoded data for 'txid'\n"
+            "  \"txid\" : \"id\",                     (string) The transaction id (same as provided)\n"
+            "  \"hash\" : \"id\",                     (string) The transaction hash\n"
+            "  \"size\" : n,                        (numeric) The serialized transaction size\n"
+            "  \"version\" : n,                     (numeric) The version\n"
+            "  \"locktime\" : ttt,                  (numeric) The lock time\n"
+            "  \"vin\" : [                          (array of json objects)\n"
             "     {\n"
-            "       \"txid\": \"id\",    (string) The transaction id\n"
-            "       \"vout\": n,         (numeric)\n"
-            "       \"scriptSig\": {     (json object) The script\n"
-            "         \"asm\": \"asm\",  (string) asm\n"
-            "         \"hex\": \"hex\"   (string) hex\n"
-            "       },\n"
-            "       \"value\" : x.xxx,   (numeric) The input value in " +
-            CURRENCY_UNIT + " (available at verbosity level 2)\n"
-            "       \"scriptPubKey\" : {          (json object) The previous output's locking script (available at verbosity level 2)\n"
-            "         \"asm\" : \"str\",            (string) The asm\n"
-            "         \"hex\" : \"str\",            (string) The hex\n"
-            "         \"type\" : \"str\",           (string) The type (one of: nonstandard, pubkey, pubkeyhash, scripthash, multisig, nulldata)\n"
-            "         \"address\" : \"str\"         (string, optional) The Bitcoin Cash address (only if well-defined address exists)\n"
-            "       },\n"
-            "       \"tokenData\" : {             (json object, optional) CashToken data (verbosity level 2, only if the input contained a token)\n"
-            "         \"category\" : \"hex\",       (string) Token id\n"
-            "         \"amount\" : \"xxx\",         (string) Fungible amount (is a string to support >53-bit amounts)\n"
-            "         \"nft\" : {                 (json object, optional) NFT data (only if the token has an NFT)\n"
-            "           \"capability\" : \"xxx\",   (string) One of \"none\", \"mutable\", \"minting\"\n"
-            "           \"commitment\" : \"hex\"    (string) NFT commitment formatted as hexadecimal\n"
+            "       \"txid\": \"id\",                 (string) The transaction id\n"
+            "       \"vout\": n,                    (numeric)\n"
+            "       \"scriptSig\": {                (json object) The script\n"
+            "         \"asm\": \"asm\",               (string) asm\n"
+            "         \"hex\": \"hex\",               (string) hex\n"
+            "         \"byteCodePattern\" : {       (json object, optional) Only for patterns == true\n"
+            "           \"fingerprint\" : \"str\",    (string) Single SHA-256 hash of script pattern\n"
+            "           \"pattern\" : \"str\",        (string) Hex-encoded script pattern\n"
+            "           \"patternAsm\" : \"str\",     (string) Script pattern asm\n"
+            "           \"data\" : [                (json array) Script data pushes\n"
+            "             \"hex\", ...              (string) Hex-encoded data push\n"
+            "           ],\n"
+            "           \"error\": true             (boolean, optional) Only if there was an error parsing the script (e.g. ending with an incomplete push)\n"
+            "          },\n"
+            "         \"redeemScript\" : {          (json object, optional) Only for patterns == true and only for p2sh inputs\n"
+            "           \"asm\" : \"str\",            (string) The p2sh redeem script asm\n"
+            "           \"hex\" : \"str\",            (string) The p2sh redeem script hex\n"
+            "           \"byteCodePattern\" : {     (json object) Redeem script byte code pattern information\n"
+            "             ...,                    Same schema as for scriptSig.byteCodePattern above\n"
+            "             \"p2shType\" : \"str\"      (string) Either \"p2sh20\" or \"p2sh32\"\n"
+            "           }\n"
             "         },\n"
-            "       \"sequence\": n      (numeric) The script sequence number\n"
+            "        },\n"
+            "       \"value\" : x.xxx,              (numeric) The input value in " + CURRENCY_UNIT + " (available at verbosity level 2)\n"
+            "       \"scriptPubKey\" : {            (json object) The previous output's locking script (available at verbosity level 2)\n"
+            "         \"asm\" : \"str\",              (string) The asm\n"
+            "         \"hex\" : \"str\",              (string) The hex\n"
+            "         \"type\" : \"str\",             (string) The type (one of: nonstandard, pubkey, pubkeyhash, scripthash, multisig, nulldata)\n"
+            "         \"address\" : \"str\",          (string, optional) The Bitcoin Cash address (only if well-defined address exists)\n"
+            "         \"byteCodePattern\" : {...}   (json object, optional) Only for patterns == true; byte code pattern information\n"
+            "       },\n"
+            "       \"tokenData\" : {               (json object, optional) CashToken data (verbosity level 2, only if the input contained a token)\n"
+            "         \"category\" : \"hex\",         (string) Token id\n"
+            "         \"amount\" : \"xxx\",           (string) Fungible amount (is a string to support >53-bit amounts)\n"
+            "         \"nft\" : {                   (json object, optional) NFT data (only if the token has an NFT)\n"
+            "           \"capability\" : \"xxx\",     (string) One of \"none\", \"mutable\", \"minting\"\n"
+            "           \"commitment\" : \"hex\"      (string) NFT commitment formatted as hexadecimal\n"
+            "         },\n"
+            "       \"sequence\": n                 (numeric) The script sequence number\n"
             "       }\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vout\" : [              (array of json objects)\n"
+            "  \"vout\" : [                         (array of json objects)\n"
             "     {\n"
-            "       \"value\" : x.xxx,            (numeric) The output value in " +
-            CURRENCY_UNIT +
-            "\n"
-            "       \"n\" : n,                    (numeric) index\n"
-            "       \"scriptPubKey\" : {          (json object)\n"
-            "         \"asm\" : \"asm\",          (string) the asm\n"
-            "         \"hex\" : \"hex\",          (string) the hex\n"
-            "         \"reqSigs\" : n,            (numeric) The required sigs\n"
-            "         \"type\" : \"pubkeyhash\",  (string) The type, eg "
-            "'pubkeyhash'\n"
-            "         \"addresses\" : [           (json array of string)\n"
-            "           \"address\"        (string) Bitcoin Cash address\n"
+            "       \"value\" : x.xxx,              (numeric) The output value in " + CURRENCY_UNIT + "\n"
+            "       \"n\" : n,                      (numeric) index\n"
+            "       \"scriptPubKey\" : {            (json object)\n"
+            "         \"asm\" : \"asm\",              (string) the asm\n"
+            "         \"hex\" : \"hex\",              (string) the hex\n"
+            "         \"reqSigs\" : n,              (numeric) The required sigs\n"
+            "         \"type\" : \"pubkeyhash\",      (string) The type, eg 'pubkeyhash'\n"
+            "         \"addresses\" : [             (json array of string)\n"
+            "           \"address\"                 (string) Bitcoin Cash address\n"
             "           ,...\n"
-            "         ]\n"
+            "         ],\n"
+            "        \"byteCodePattern\" : {...}    (json object, optional) Only for patterns == true; byte code pattern information\n"
             "       },\n"
-            "       \"tokenData\" : {             (json object optional)\n"
-            "         \"category\" : \"hex\",       (string) token id\n"
-            "         \"amount\" : \"xxx\",         (string) fungible amount (is a string to support >53-bit amounts)\n"
-            "         \"nft\" : {                 (json object optional)\n"
-            "           \"capability\" : \"xxx\",   (string) one of \"none\", \"mutable\", \"minting\"\n"
-            "           \"commitment\" : \"hex\"    (string) NFT commitment\n"
+            "       \"tokenData\" : {               (json object optional)\n"
+            "         \"category\" : \"hex\",         (string) token id\n"
+            "         \"amount\" : \"xxx\",           (string) fungible amount (is a string to support >53-bit amounts)\n"
+            "         \"nft\" : {                   (json object optional)\n"
+            "           \"capability\" : \"xxx\",     (string) one of \"none\", \"mutable\", \"minting\"\n"
+            "           \"commitment\" : \"hex\"      (string) NFT commitment\n"
             "         }\n"
             "       }\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"fee\" : x.xxx,            (numeric) Transaction fee in " +
-            CURRENCY_UNIT + " (available at verbosity level 2)\n"
-            "  \"blockhash\" : \"hash\",   (string) the block hash\n"
-            "  \"confirmations\" : n,      (numeric) The confirmations\n"
-            "  \"time\" : ttt,             (numeric) The transaction time in "
-            "seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"blocktime\" : ttt,        (numeric) The block time in seconds "
-            "since epoch (Jan 1 1970 GMT)\n"
-            "  \"in_active_chain\": b  (bool) Whether specified block is in "
-            "the active chain or not (only present with explicit \"blockhash\" "
-            "argument)\n"
+            "  \"fee\" : x.xxx,                     (numeric) Transaction fee in " + CURRENCY_UNIT + " (available at verbosity level 2)\n"
+            "  \"blockhash\" : \"hash\",              (string) the block hash\n"
+            "  \"confirmations\" : n,               (numeric) The confirmations\n"
+            "  \"time\" : ttt,                      (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"blocktime\" : ttt,                 (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"in_active_chain\": b               (bool) Whether specified block is in the active chain or not (only presentwith explicit \"blockhash\" argument)\n"
             "}\n"
 
             "\nExamples:\n" +
@@ -316,10 +327,9 @@ static UniValue getrawtransaction(const Config &config,
             HelpExampleCli("getrawtransaction", "\"mytxid\" true") +
             HelpExampleRpc("getrawtransaction", "\"mytxid\", true") +
             HelpExampleCli("getrawtransaction", "\"mytxid\" 2") +
-            HelpExampleCli("getrawtransaction",
-                           "\"mytxid\" false \"myblockhash\"") +
-            HelpExampleCli("getrawtransaction",
-                           "\"mytxid\" true \"myblockhash\""));
+            HelpExampleCli("getrawtransaction", "\"mytxid\" false \"myblockhash\"") +
+            HelpExampleCli("getrawtransaction", "\"mytxid\" true \"myblockhash\"") +
+            HelpExampleCli("getrawtransaction", "\"mytxid\" true \"\" true"));
     }
 
     bool in_active_chain = true;
@@ -354,7 +364,7 @@ static UniValue getrawtransaction(const Config &config,
     // get their values and calculate transaction fee
     const bool fGetPrevouts = verbosityLevel >= 2;
 
-    if (!request.params[2].isNull()) {
+    if (!request.params[2].isNull() && request.params[2].get_str().size() > 0) {
         LOCK(cs_main);
 
         BlockHash blockhash(ParseHashV(request.params[2], "parameter 3"));
@@ -363,6 +373,11 @@ static UniValue getrawtransaction(const Config &config,
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block hash not found");
         }
         in_active_chain = ::ChainActive().Contains(blockindex);
+    }
+
+    bool fPatterns = false;
+    if (!request.params[3].isNull()) {
+        fPatterns = request.params[3].get_bool();
     }
 
     bool f_txindex_ready = false;
@@ -407,6 +422,7 @@ static UniValue getrawtransaction(const Config &config,
         options.include_fee = true;
         options.prevout_options.emplace();
     }
+    options.include_patterns = fPatterns;
 
     UniValue::Object result = TxToJSON(config, *tx, hash_block, txUndo ? &*txUndo : nullptr, options);
     if (blockindex) {
@@ -2062,7 +2078,7 @@ static UniValue converttopsbt(const Config &,
 static const ContextFreeRPCCommand commands[] = {
     //  category            name                         actor (function)           argNames
     //  ------------------- ------------------------     ----------------------     ----------
-    { "rawtransactions",    "getrawtransaction",         getrawtransaction,         {"txid","verbose","blockhash"} },
+    { "rawtransactions",    "getrawtransaction",         getrawtransaction,         {"txid","verbose","blockhash","patterns"} },
     { "rawtransactions",    "createrawtransaction",      createrawtransaction,      {"inputs","outputs","locktime"} },
     { "rawtransactions",    "decoderawtransaction",      decoderawtransaction,      {"hexstring"} },
     { "rawtransactions",    "decodescript",              decodescript,              {"hexstring"} },

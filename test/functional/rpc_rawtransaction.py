@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2014-2019 The Bitcoin Core developers
-# Copyright (c) 2020-2022 The Bitcoin developers
+# Copyright (c) 2020-2025 The Bitcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test the rawtranscation RPCs.
@@ -452,6 +452,7 @@ class RawTransactionsTest(BitcoinTestFramework):
             [rawTxPartialSigned1['hex'], rawTxPartialSigned2['hex']])
         self.log.debug(rawTxComb)
         hash = self.nodes[2].sendrawtransaction(rawTxComb)
+        multisigTxHash = hash # we will use it later for patterns test
         rawTx2 = self.nodes[0].decoderawtransaction(rawTxComb)
 
         self.sync_all(synced_nodes)
@@ -774,6 +775,47 @@ class RawTransactionsTest(BitcoinTestFramework):
             cb_txid = node.getblock(block_hash, 1)["tx"][0]
             result = node.getrawtransaction(cb_txid, 2, block_hash)
             assert "fee" not in result
+
+        # 11.7 Bytecode patterns tests
+        # Note: we use the multisig tx created above so we're sure to have a redeemScript
+        def check_bcp_keys(bcp, *extra_keys):
+            """Check that byteCodePattern dict has at least these 4 keys"""
+            assert_equal({'fingerprint', 'pattern', 'patternAsm', 'data', *extra_keys} - set(bcp.keys()), set())
+        # Check verbosity=1 patterns=True
+        result = self.nodes[1].getrawtransaction(multisigTxHash, 1, "", True)
+        check_bcp_keys(result["vin"][0]["scriptSig"]["byteCodePattern"])
+        check_bcp_keys(result["vout"][0]["scriptPubKey"]["byteCodePattern"])
+        # Check verbosity=2 patterns=True
+        result = self.nodes[1].getrawtransaction(multisigTxHash, 2, "", True)
+        check_bcp_keys(result["vin"][0]["scriptSig"]["byteCodePattern"])
+        check_bcp_keys(result["vin"][0]["scriptPubKey"]["byteCodePattern"])
+        check_bcp_keys(result["vout"][0]["scriptPubKey"]["byteCodePattern"])
+        result = self.nodes[1].getrawtransaction(multisigTxHash, 2, "", True)
+        check_bcp_keys(result["vin"][0]["scriptSig"]["redeemScript"]["byteCodePattern"])
+
+        # Check patterns=False has no patterns for verbosity 1 and 2
+        def assert_scripts_do_not_contain_bytecodepattern(tx):
+            for vin in tx["vin"]:
+                if "coinbase" in vin:
+                    assert isinstance(vin["coinbase"], str)
+                    continue
+
+                assert "scriptSig" in vin
+                assert "byteCodePattern" not in vin["scriptSig"]
+                assert "redeemScript" not in vin["scriptSig"]
+                if "prevout" in vin:
+                    assert "byteCodePattern" not in vin["prevout"]["scriptPubKey"]
+
+            for vout in tx["vout"]:
+                assert "scriptPubKey" in vout
+                assert "byteCodePattern" not in vout["scriptPubKey"]
+
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 1))
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 1, ""))
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 1, "", False))
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 2))
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 2, ""))
+        assert_scripts_do_not_contain_bytecodepattern(self.nodes[1].getrawtransaction(multisigTxHash, 2, "", False))
 
 
 if __name__ == '__main__':

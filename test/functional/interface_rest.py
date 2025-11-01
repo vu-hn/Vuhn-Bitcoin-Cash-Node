@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2014-2019 The Bitcoin Core developers
+# Copyright (c) 2019-2025 The Bitcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test the REST API."""
@@ -335,7 +336,7 @@ class RESTTest (BitcoinTestFramework):
         for tx in txs:
             assert tx in json_obj['tx']
 
-        # Check /withpatterns/ endpoint: Same as /block/ but additionally all scripts have key: "byteCodePattern"
+        # Check /block/withpatterns/ endpoint: Same as /block/ but additionally all scripts have key: "byteCodePattern"
         json_obj = self.test_rest_request("/block/withpatterns/{}".format(newblockhash[0]))
         for tx_obj in json_obj["tx"]:
             for vin in tx_obj["vin"]:
@@ -345,6 +346,17 @@ class RESTTest (BitcoinTestFramework):
                 else:
                     assert "prevout" not in vin
             for vout in tx_obj["vout"]:
+                assert "byteCodePattern" in vout["scriptPubKey"]
+
+        # Check /tx/withpatterns/ endpoint: Same as /tx/ but additionally all scripts have key: "byteCodePattern"
+        for tx_obj in json_obj["tx"]:
+            json_obj = self.test_rest_request("/tx/withpatterns/{}".format(tx_obj["txid"]))
+            for vin in json_obj["vin"]:
+                assert "scriptPubKey" not in vin
+                assert "prevout" not in vin
+                if "coinbase" not in vin:
+                    assert "byteCodePattern" in vin["scriptSig"]
+            for vout in json_obj["vout"]:
                 assert "byteCodePattern" in vout["scriptPubKey"]
 
         self.log.info("Test the /chaininfo URI")

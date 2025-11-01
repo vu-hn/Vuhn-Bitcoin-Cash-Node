@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2014-2019 The Bitcoin Core developers
-# Copyright (c) 2021-2023 The Bitcoin developers
+# Copyright (c) 2021-2025 The Bitcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -528,8 +528,8 @@ class BlockchainTest(BitcoinTestFramework):
         assert_equal({block_txns.index(txid_child), block_txns.index(txid_to_p2sh), block_txns.index(txid_to_p2pkh)},
                      {1, 2, 3})
 
-        def assert_fee_not_in_block(verbosity):
-            block = node.getblock(blockhash, verbosity)
+        def assert_fee_not_in_block(verbosity, patterns=False):
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block['tx'][1:]:
                 if isinstance(tx, str):
                     # In verbosity level 1, only the transaction hashes are written
@@ -537,14 +537,14 @@ class BlockchainTest(BitcoinTestFramework):
                 else:
                     assert isinstance(tx, dict) and 'fee' not in tx
 
-        def assert_fee_in_block(verbosity):
-            block = node.getblock(blockhash, verbosity)
+        def assert_fee_in_block(verbosity, patterns=False):
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block['tx'][1:]:
                 assert 'fee' in tx
                 assert_fee_amount(tx['fee'], tx['size'], fee_per_byte * 1000 / COIN)
 
-        def assert_vin_contains_prevout(verbosity):
-            block = node.getblock(blockhash, verbosity)
+        def assert_vin_contains_prevout(verbosity, patterns=False):
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block['tx'][1:]:
                 total_vin = Decimal("0.00000000")
                 total_vout = Decimal("0.00000000")
@@ -558,8 +558,8 @@ class BlockchainTest(BitcoinTestFramework):
                     total_vout += vout["value"]
                 assert_equal(total_vin, total_vout + tx["fee"])
 
-        def assert_vin_does_not_contain_prevout(verbosity):
-            block = node.getblock(blockhash, verbosity)
+        def assert_vin_does_not_contain_prevout(verbosity, patterns=False):
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block['tx'][1:]:
                 if isinstance(tx, str):
                     # In verbosity level 1, only the transaction hashes are written
@@ -568,13 +568,13 @@ class BlockchainTest(BitcoinTestFramework):
                     for vin in tx["vin"]:
                         assert "prevout" not in vin
 
-        def assert_scripts_contain_bytecodepattern(verbosity):
+        def assert_scripts_contain_bytecodepattern(verbosity, patterns=False):
             def check_bcp_keys(bcp, *extra_keys):
                 """Check that byteCodePattern dict has at least these 4 keys"""
                 assert_equal({'fingerprint', 'pattern', 'patternAsm', 'data', *extra_keys} - set(bcp.keys()), set())
 
             redeem_script_count = 0
-            block = node.getblock(blockhash, verbosity)
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block["tx"]:
                 for vin in tx["vin"]:
                     if "coinbase" in vin:
@@ -590,8 +590,9 @@ class BlockchainTest(BitcoinTestFramework):
                                      set())
                         check_bcp_keys(vin["scriptSig"]["redeemScript"]["byteCodePattern"], "p2shType")
 
-                    assert "byteCodePattern" in vin["prevout"]["scriptPubKey"]
-                    check_bcp_keys(vin["prevout"]["scriptPubKey"]["byteCodePattern"])
+                    if verbosity > 2:
+                        assert "byteCodePattern" in vin["prevout"]["scriptPubKey"]
+                        check_bcp_keys(vin["prevout"]["scriptPubKey"]["byteCodePattern"])
 
                 for vout in tx["vout"]:
                     assert "scriptPubKey" in vout
@@ -599,8 +600,8 @@ class BlockchainTest(BitcoinTestFramework):
                     check_bcp_keys(vout["scriptPubKey"]["byteCodePattern"])
             return redeem_script_count
 
-        def assert_scripts_do_not_contain_bytecodepattern(verbosity):
-            block = node.getblock(blockhash, verbosity)
+        def assert_scripts_do_not_contain_bytecodepattern(verbosity, patterns=False):
+            block = node.getblock(blockhash, verbosity, patterns)
             for tx in block["tx"]:
                 if isinstance(tx, str):
                     continue
@@ -623,34 +624,42 @@ class BlockchainTest(BitcoinTestFramework):
         self.log.info("Test that getblock with verbosity 1 doesn't include fee")
         assert_fee_not_in_block(1)
 
-        self.log.info('Test that getblock with verbosity 2, 3, and 4 includes expected fee')
+        self.log.info('Test that getblock with verbosity 2 and 3 includes expected fee')
         assert_fee_in_block(2)
+        assert_fee_in_block(2, True)
         assert_fee_in_block(3)
-        assert_fee_in_block(4)
+        assert_fee_in_block(3, True)
 
         self.log.info("Test that getblock with verbosity 1 and 2 does not include prevout")
         assert_vin_does_not_contain_prevout(1)
         assert_vin_does_not_contain_prevout(2)
+        assert_vin_does_not_contain_prevout(2, True)
 
-        self.log.info("Test that getblock with verbosity 3 and 4 includes prevout")
+        self.log.info("Test that getblock with verbosity 3 includes prevout")
         assert_vin_contains_prevout(3)
-        assert_vin_contains_prevout(4)
+        assert_vin_contains_prevout(3, True)
 
-        self.log.info("Test that getblock with verbosity 1-3 does not include byteCodePattern for any script")
+        self.log.info("Test that getblock with verbosity 1, 2, and 3 does not include byteCodePattern for any script")
         assert_scripts_do_not_contain_bytecodepattern(1)
         assert_scripts_do_not_contain_bytecodepattern(2)
         assert_scripts_do_not_contain_bytecodepattern(3)
 
-        self.log.info("Test that getblock with verbosity 4 includes byteCodePattern in all scripts")
-        rs_count = assert_scripts_contain_bytecodepattern(4)
-        self.log.info("Test that we saw at least some p2sh redeemScript entries")
+        self.log.info("Test that getblock with verbosity pattern flag includes byteCodePattern in all scripts")
+        rs_count = assert_scripts_contain_bytecodepattern(2, True)
+        self.log.info("Test that we didn't see any p2sh redeemScript entries at verbosity 2, as they need prevouts")
+        assert_equal(rs_count, 0)
+        rs_count = assert_scripts_contain_bytecodepattern(3, True)
+        self.log.info("Test that we saw at least some p2sh redeemScript entries at verbosity 3")
         assert_greater_than(rs_count, 0)
 
-        self.log.info("Test that getblock with verbosity 2, 3 and 4 still works with pruned Undo data")
+        self.log.info("Test that getblock with verbosity 2 and 3 still works with pruned Undo data")
         datadir = get_datadir_path(self.options.tmpdir, 0)
 
         self.log.info("Test getblock with invalid verbosity type returns proper error message")
         assert_raises_rpc_error(-1, "JSON value is not an integer as expected", node.getblock, blockhash, "2")
+
+        self.log.info("Test getblock with invalid patterns type returns proper error message")
+        assert_raises_rpc_error(-1, "JSON value is not a boolean as expected", node.getblock, blockhash, 2, "True")
 
         def move_block_file(old, new):
             old_path = os.path.join(datadir, self.chain, 'blocks', old)
@@ -661,11 +670,13 @@ class BlockchainTest(BitcoinTestFramework):
         move_block_file('rev00000.dat', 'rev_wrong')
 
         assert_fee_not_in_block(2)
+        assert_fee_not_in_block(2, True)
         assert_fee_not_in_block(3)
-        assert_fee_not_in_block(4)
+        assert_fee_not_in_block(3, True)
         assert_vin_does_not_contain_prevout(2)
+        assert_vin_does_not_contain_prevout(2, True)
         assert_vin_does_not_contain_prevout(3)
-        assert_vin_does_not_contain_prevout(4)
+        assert_vin_does_not_contain_prevout(3, True)
 
         # Restore chain state
         move_block_file('rev_wrong', 'rev00000.dat')
