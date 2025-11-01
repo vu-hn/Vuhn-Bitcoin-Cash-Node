@@ -1,5 +1,5 @@
 // Copyright (c) 2016-2019 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,33 +17,31 @@
 
 #include <univalue.h>
 
-static void RPCBlockVerbose(int blockHeight, benchmark::State &state, TxVerbosity verbosity) {
+static void RPCBlockVerbose(int blockHeight, benchmark::State &state, const TransactionFormatOptions &opts) {
     SelectParams(CBaseChainParams::MAIN);
     BlockData blockData(blockHeight);
 
-    const auto blockuv = blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex,
-                                     verbosity);
-    if (verbosity == TxVerbosity::SHOW_DETAILS_AND_PREVOUT) {
+    const auto blockuv = blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex, opts);
+    if (!opts.block_level.txids_only && opts.prevout_options.has_value()) {
         assert(CheckTxsHavePrevout(blockuv));
     }
 
     BENCHMARK_LOOP {
-        (void)blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex,
-                          TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+        (void)blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex, opts);
     }
 }
 
 static void RPCBlockVerbose_1MB(benchmark::State &state) {
-    RPCBlockVerbose(413567, state, TxVerbosity::SHOW_DETAILS);
+    RPCBlockVerbose(413567, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void RPCBlockVerbose_32MB(benchmark::State &state) {
-    RPCBlockVerbose(556034, state, TxVerbosity::SHOW_DETAILS);
+    RPCBlockVerbose(556034, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void RPCBlockVeryVerbose_1MB(benchmark::State &state) {
-    RPCBlockVerbose(413567, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    RPCBlockVerbose(413567, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void RPCBlockVeryVerbose_32MB(benchmark::State &state) {
-    RPCBlockVerbose(556034, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    RPCBlockVerbose(556034, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 
 BENCHMARK(RPCBlockVerbose_1MB, 23);

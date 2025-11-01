@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,14 +25,43 @@ class uint160;
 class uint256;
 namespace token { class OutputData; struct SafeAmount; }
 
-/**
- * Verbose level for block's transaction
- */
-enum class TxVerbosity {
-    SHOW_TXID,                                      //!< Only TXID for each block's transaction
-    SHOW_DETAILS,                                   //!< Include TXID, inputs, outputs, and other common block's transaction information
+/** Verbosity level for JSONification of blocks */
+enum class BlockTxVerbosity {
+    SHOW_TXID,                                      //!< Only TXID for each transaction
+    SHOW_DETAILS,                                   //!< Include TXID, inputs, outputs, and other common transaction information
     SHOW_DETAILS_AND_PREVOUT,                       //!< The same as previous option with information about prevouts if available
     SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS    //!< The same as previous option with information about script byte code patterns
+};
+
+/**
+ * Fine-grained options for serialization of transaction and/or block data.
+ * New fields may be added in the future.
+ */
+struct TransactionFormatOptions {
+    bool include_hex = false;                       //!< Whether whole transaction "hex" entry will be included
+    bool include_fee = false;                       //!< Whether transaction "fee" entry will be included
+    bool include_patterns = false;                  //!< Whether "bytecodePattern" entries will be generated for scripts
+
+    struct PrevoutOptions {
+        bool nest_prevouts = false;                 //!< Whether prevout fields will be nested under their own "prevout" object
+        bool include_height = false;                //!< Whether prevout "height" entry will be included
+        bool include_generated = false;             //!< Whether prevout "generated" entry will be included
+        PrevoutOptions() noexcept = default;
+    };
+
+    std::optional<PrevoutOptions> prevout_options;  //!< Whether prevout fields will be included
+
+    /** Block-level options, used by blockToJSON() only */
+    struct BlockLevel {
+        /// Whether to show only txids and not tx contents. If true, above fields are ignored completely by blockToJSON.
+        bool txids_only = false;
+    } block_level;
+
+    TransactionFormatOptions& WithHex(bool enable = true) { include_hex = enable; return *this; }
+
+    TransactionFormatOptions() noexcept = default;
+    // Implicit conversion from BlockTxVerbosity
+    TransactionFormatOptions(BlockTxVerbosity) noexcept;
 };
 
 // core_read.cpp
@@ -84,8 +113,8 @@ UniValue::Object ScriptPubKeyToUniv(const Config &config, const CScript &scriptP
                                     bool fIncludeP2SH = false, bool include_pattern = false);
 UniValue::Object ScriptToUniv(const Config &config, const CScript &script, bool include_address,
                               bool include_type = true, bool include_pattern = false);
-UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const uint256 &hashBlock, bool include_hex = true,
-                          const CTxUndo* txundo = nullptr, TxVerbosity verbosity = TxVerbosity::SHOW_DETAILS);
+UniValue::Object TransactionToUniv(const Config &config, const CTransaction &tx, const CTxUndo *txundo = nullptr,
+                                   const TransactionFormatOptions &options = {}, size_t extraFieldsToReserve = 0u);
 UniValue::Object TokenDataToUniv(const token::OutputData &token);
 
 /// Returns a UniValue::VSTR (string) for any token amount.  We are forced to unconditionally wrap token amounts

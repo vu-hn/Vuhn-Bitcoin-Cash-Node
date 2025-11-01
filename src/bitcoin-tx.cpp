@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2019 The Bitcoin Core developers
-// Copyright (c) 2020-2024 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -777,7 +777,7 @@ static void MutateTx(CMutableTransaction &tx, const std::string &command,
 }
 
 static void OutputTxJSON(const Config &config, const CTransaction &tx) {
-    UniValue::Object entry = TxToUniv(config, tx, uint256());
+    UniValue::Object entry = TransactionToUniv(config, tx, nullptr, TransactionFormatOptions().WithHex());
 
     std::string jsonOutput = UniValue::stringify(entry, 4);
     fprintf(stdout, "%s\n", jsonOutput.c_str());

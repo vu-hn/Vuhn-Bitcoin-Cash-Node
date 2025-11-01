@@ -126,7 +126,7 @@ UniValue::Object blockheaderToJSON(const Config &config, const CBlockIndex *tip,
 }
 
 UniValue::Object blockToJSON(const Config &config, const CBlock &block, const CBlockIndex *tip,
-                             const CBlockIndex *blockindex, TxVerbosity verbosity) LOCKS_EXCLUDED(cs_main) {
+                             const CBlockIndex *blockindex, const TransactionFormatOptions &txOptions) LOCKS_EXCLUDED(cs_main) {
     const CBlockIndex *pnext;
     int confirmations = ComputeNextBlockAndDepth(tip, blockindex, pnext);
     bool previousblockhash = blockindex->pprev;
@@ -144,16 +144,13 @@ UniValue::Object blockToJSON(const Config &config, const CBlock &block, const CB
     UniValue::Array txs;
     txs.reserve(block.vtx.size());
 
-    switch (verbosity) {
-    case TxVerbosity::SHOW_TXID:
+    if (txOptions.block_level.txids_only) {
+        // Equivalent to BlockTxVerbosity::SHOW_TXID: only transaction IDs
         for (const auto &tx : block.vtx) {
             txs.emplace_back(tx->GetId().GetHex());
         }
-        break;
-
-    case TxVerbosity::SHOW_DETAILS:
-    case TxVerbosity::SHOW_DETAILS_AND_PREVOUT:
-    case TxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS:
+    } else {
+        // Detailed serialization with options
         CBlockUndo blockUndo;
         const bool have_undo{WITH_LOCK(::cs_main, return !IsBlockPruned(blockindex) && UndoReadFromDisk(blockUndo, blockindex))};
 
@@ -161,10 +158,8 @@ UniValue::Object blockToJSON(const Config &config, const CBlock &block, const CB
             const CTransactionRef& tx = block.vtx[i];
             // coinbase transaction (i.e. i == 0) doesn't have undo data
             const CTxUndo* txundo = (have_undo && i > 0u) ? &blockUndo.vtxundo.at(i - 1u) : nullptr;
-            txs.push_back(TxToUniv(config, *tx, /*block_hash=*/uint256(), /*include_hex=*/true, txundo, verbosity));
+            txs.push_back(TransactionToUniv(config, *tx, txundo, txOptions));
         }
-        break;
-
     }
 
     result.emplace_back("tx", std::move(txs));
@@ -1099,7 +1094,7 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
     int verbosity = 1;
     if (!request.params[1].isNull()) {
         if (request.params[1].isBool()) {
-            verbosity = request.params[1].get_bool() ? 1 : 0;
+            verbosity = request.params[1].get_bool(); // 0 or 1
         } else {
             verbosity = request.params[1].get_int();
         }
@@ -1124,18 +1119,18 @@ static UniValue getblock(const Config &config, const JSONRPCRequest &request) {
 
     const CBlock block = ReadBlockChecked(config, pblockindex);
 
-    TxVerbosity tx_verbosity;
-    if (verbosity == 1) {
-        tx_verbosity = TxVerbosity::SHOW_TXID;
-    } else if (verbosity == 2) {
-        tx_verbosity = TxVerbosity::SHOW_DETAILS;
-    } else if (verbosity == 3) {
-        tx_verbosity = TxVerbosity::SHOW_DETAILS_AND_PREVOUT;
-    } else {
-        tx_verbosity = TxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS;
-    }
+    const BlockTxVerbosity blockTxVerbosity = [&verbosity] {
+        using enum BlockTxVerbosity;
+        switch (verbosity) {
+            case 1: return SHOW_TXID;
+            case 2: return SHOW_DETAILS;
+            case 3: return SHOW_DETAILS_AND_PREVOUT;
+            /* verbosity >= 4 */
+            default: return SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS;
+        }
+    }();
 
-    return blockToJSON(config, block, tip, pblockindex, tx_verbosity);
+    return blockToJSON(config, block, tip, pblockindex, blockTxVerbosity);
 }
 
 static UniValue pruneblockchain(const Config &config,

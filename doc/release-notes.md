@@ -57,6 +57,10 @@ None
 
 - By default, the `gettxoutsetinfo` now reports the UTXO set hash under the JSON object key `hash_serialized_3` rather
   than `hash_serialized`.
+- For `getrawtransaction` at verbosity level 2, the JSON output now places the `sequence` field as the last
+  object in the input, and the `fee` field as the first object after the `vout` array. This aligns with the unified
+  transaction serialization used by `getblock`. The data content is unchanged, but clients relying on specific key
+  ordering may need updates.
 
 ## Regressions
 

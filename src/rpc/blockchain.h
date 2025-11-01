@@ -38,7 +38,7 @@ void RPCNotifyBlockChange(bool ibd, const CBlockIndex *pindex);
 
 /** Block description to JSON */
 UniValue::Object blockToJSON(const Config &config, const CBlock &block, const CBlockIndex *tip,
-                             const CBlockIndex *blockindex, TxVerbosity verbosity) LOCKS_EXCLUDED(cs_main);
+                             const CBlockIndex *blockindex, const TransactionFormatOptions &txOptions) LOCKS_EXCLUDED(cs_main);
 
 /** Mempool information to JSON */
 UniValue::Object MempoolInfoToJSON(const Config &config, const CTxMemPool &pool);
