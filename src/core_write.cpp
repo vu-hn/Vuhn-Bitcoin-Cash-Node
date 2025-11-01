@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -22,6 +22,25 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+
+TransactionFormatOptions::TransactionFormatOptions(const BlockTxVerbosity verbosity) noexcept {
+    using enum BlockTxVerbosity;
+    switch (verbosity) {
+        case SHOW_TXID:
+            block_level.txids_only = true;
+            break;
+        case SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS:
+            include_patterns = true;
+            [[fallthrough]];
+        case SHOW_DETAILS_AND_PREVOUT:
+            prevout_options.emplace();
+            prevout_options->nest_prevouts = prevout_options->include_height = prevout_options->include_generated = true;
+            [[fallthrough]];
+        case SHOW_DETAILS:
+            include_hex = include_fee = true;
+            break;
+    }
+}
 
 UniValue ValueFromAmount(const Amount &amount) {
     const bool sign = amount < Amount::zero();
@@ -265,19 +284,23 @@ UniValue::Object ScriptPubKeyToUniv(const Config &config, const CScript &scriptP
     return out;
 }
 
-UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const uint256 &hashBlock, bool include_hex,
-                          const CTxUndo* txundo, TxVerbosity verbosity) {
-    bool include_blockhash = !hashBlock.IsNull();
+UniValue::Object TransactionToUniv(const Config &config, const CTransaction &tx, const CTxUndo *txundo,
+                                   const TransactionFormatOptions &options, size_t extraFieldsToReserve) {
     const bool tx_is_coinbase = tx.IsCoinBase();
-    // If available, use Undo data to calculate the fee. Note that txundo == nullptr
-    // for coinbase transactions and for transactions where undo data is unavailable.
-    const bool have_undo = !tx_is_coinbase && txundo != nullptr;
+    const bool have_prevouts = !tx_is_coinbase && txundo && txundo->vprevout.size() == tx.vin.size();
+    const bool include_hex = options.include_hex;
+    const bool include_patterns = options.include_patterns;
+    // Fields that require prevouts will be silently omitted if prevouts are missing
+    const bool include_fee = have_prevouts && options.include_fee;
+    const bool include_prevouts = have_prevouts && options.prevout_options.has_value();
+    const bool include_prevout_height = include_prevouts && options.prevout_options->include_height;
+    const bool include_prevout_generated = include_prevouts && options.prevout_options->include_generated;
+    const bool nest_prevouts = include_prevouts && options.prevout_options->nest_prevouts;
     Amount amt_total_in = Amount::zero();
     Amount amt_total_out = Amount::zero();
-    const bool include_patterns = verbosity == TxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS;
 
     UniValue::Object entry;
-    entry.reserve(7 + include_blockhash + include_hex + have_undo);
+    entry.reserve(7u + include_hex + include_fee + extraFieldsToReserve);
     entry.emplace_back("txid", tx.GetId().GetHex());
     entry.emplace_back("hash", tx.GetHash().GetHex());
     entry.emplace_back("version", tx.nVersion);
@@ -289,7 +312,14 @@ UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const ui
     for (size_t i = 0; i < tx.vin.size(); ++i) {
         const CTxIn &txin = tx.vin[i];
         UniValue::Object in;
-        const size_t in_rsv_sz = (tx_is_coinbase ? 2u : 4u) + have_undo;
+        const size_t prevout_size = include_prevouts ? (2u // value and scriptPubKey
+                                                        + 1u // maybe has_token_data
+                                                        + include_prevout_generated
+                                                        + include_prevout_height
+                                                        + include_patterns)
+                                                     : 0u;
+        const size_t in_rsv_sz = (tx_is_coinbase ? 2u : 4u) + // txid and index + scriptSig and sequence for non-coinbase
+                                 (include_prevouts ? (nest_prevouts ? 1u : prevout_size) : 0u); // prevout object or flattened fields
         in.reserve(in_rsv_sz);
         std::optional<std::vector<uint8_t>> optMaybeRedeemScript;
         if (tx_is_coinbase) {
@@ -298,7 +328,7 @@ UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const ui
             in.emplace_back("txid", txin.prevout.GetTxId().GetHex());
             in.emplace_back("vout", txin.prevout.GetN());
             UniValue::Object o;
-            o.reserve(2 + include_patterns /* byteCodePattern */ + (have_undo && include_patterns) /* maybe redeemScript */);
+            o.reserve(2 + include_patterns /* byteCodePattern */ + (include_prevouts && include_patterns) /* maybe redeemScript */);
             o.emplace_back("asm", ScriptToAsmStr(txin.scriptSig, true));
             o.emplace_back("hex", HexStr(txin.scriptSig));
             if (include_patterns) {
@@ -306,21 +336,31 @@ UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const ui
             }
             in.emplace_back("scriptSig", std::move(o));
         }
-        if (have_undo) {
+
+        if (have_prevouts) {
+            assert(txundo != nullptr);
             const Coin& prev_coin = txundo->vprevout.at(i);
             const CTxOut& prev_txout = prev_coin.GetTxOut();
 
-            amt_total_in += prev_txout.nValue;
+            if (include_fee) {
+                amt_total_in += prev_txout.nValue;
+            }
 
-            if (verbosity == TxVerbosity::SHOW_DETAILS_AND_PREVOUT || include_patterns) {
+            if (include_prevouts) {
                 UniValue::Object o_script_pub_key = ScriptToUniv(config, prev_txout.scriptPubKey,
                                                                  /*include_address=*/true, /*include type=*/true,
                                                                  /*include_pattern=*/include_patterns);
                 UniValue::Object p;
                 const bool has_token_data = prev_txout.tokenDataPtr;
-                p.reserve(5u + has_token_data);
-                p.emplace_back("generated", prev_coin.IsCoinBase());
-                p.emplace_back("height", prev_coin.GetHeight());
+                if (prevout_size) {
+                    p.reserve(prevout_size - !has_token_data);
+                }
+                if (include_prevout_generated) {
+                    p.emplace_back("generated", prev_coin.IsCoinBase());
+                }
+                if (include_prevout_height) {
+                    p.emplace_back("height", prev_coin.GetHeight());
+                }
                 p.emplace_back("value", ValueFromAmount(prev_txout.nValue));
                 if (include_patterns && optMaybeRedeemScript.has_value()) {
                     // Maybe add the redeemScript & pattern to the input's `scriptSig` JSON object as well, if the
@@ -354,7 +394,13 @@ UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const ui
                 if (has_token_data) {
                     p.emplace_back("tokenData", TokenDataToUniv(*prev_txout.tokenDataPtr));
                 }
-                in.emplace_back("prevout", std::move(p));
+                if (nest_prevouts) {
+                    in.emplace_back("prevout", std::move(p));
+                } else {
+                    for (auto &kvpair : p) {
+                        in.push_back(std::move(kvpair));
+                    }
+                }
             }
         }
         in.emplace_back("sequence", txin.nSequence);
@@ -375,24 +421,26 @@ UniValue::Object TxToUniv(const Config &config, const CTransaction &tx, const ui
         if (has_token_data) {
             out.emplace_back("tokenData", TokenDataToUniv(*txout.tokenDataPtr));
         }
-        if (have_undo) {
+        if (include_fee) {
             amt_total_out += txout.nValue;
         }
         vout.emplace_back(std::move(out));
     }
     entry.emplace_back("vout", std::move(vout));
 
-    if (have_undo) {
+    if (include_fee) {
+        auto CheckAmount = [&tx](const Amount &amt, const char *desc) {
+            if (!MoneyRange(amt)) [[unlikely]] {
+                // This should never happen (indicates db corruption)
+                throw std::runtime_error(strprintf("TransactionToUniv: Bad amount \"%s\" encountered for %s for tx %s",
+                                                   amt.ToString(), desc, tx.GetId().ToString()));
+            }
+        };
+        CheckAmount(amt_total_in, "amt_total_in");
+        CheckAmount(amt_total_out, "amt_total_out");
         const Amount fee = amt_total_in - amt_total_out;
-        if (!MoneyRange(fee)) {
-            throw std::runtime_error(strprintf("Bad amount \"%s\" encountered for fee for tx %s in %s",
-                                               fee.ToString(), tx.GetId().ToString(), __func__));
-        }
+        CheckAmount(fee, "fee");
         entry.emplace_back("fee", ValueFromAmount(fee));
-    }
-
-    if (include_blockhash) {
-        entry.emplace_back("blockhash", hashBlock.GetHex());
     }
 
     if (include_hex) {

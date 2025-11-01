@@ -1,5 +1,5 @@
 // Copyright (c) 2016-2019 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,13 +16,12 @@
 #include <univalue.h>
 
 static void JSONReadWriteBlock(int blockHeight, unsigned int pretty, bool write, benchmark::State &state,
-                               TxVerbosity verbosity) {
+                               const TransactionFormatOptions &opts) {
     SelectParams(CBaseChainParams::MAIN);
     BlockData blockData(blockHeight);
 
-    const auto blockuv = blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex,
-                                     verbosity);
-    if (verbosity == TxVerbosity::SHOW_DETAILS_AND_PREVOUT) {
+    const auto blockuv = blockToJSON(GetConfig(), blockData.block, &blockData.blockIndex, &blockData.blockIndex, opts);
+    if (!opts.block_level.txids_only && opts.prevout_options.has_value()) {
         assert(CheckTxsHavePrevout(blockuv));
     }
 
@@ -41,40 +40,40 @@ static void JSONReadWriteBlock(int blockHeight, unsigned int pretty, bool write,
 }
 
 static void JSONReadBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 0, false, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(413567, 0, false, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONReadBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 0, false, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(556034, 0, false, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONWriteBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 0, true, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(413567, 0, true, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONWriteBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 0, true, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(556034, 0, true, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONWritePrettyBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 4, true, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(413567, 4, true, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONWritePrettyBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 4, true, state, TxVerbosity::SHOW_DETAILS);
+    JSONReadWriteBlock(556034, 4, true, state, BlockTxVerbosity::SHOW_DETAILS);
 }
 static void JSONReadVeryVerboseBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 0, false, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(413567, 0, false, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void JSONReadVeryVerboseBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 0, false, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(556034, 0, false, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void JSONWriteVeryVerboseBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 0, true, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(413567, 0, true, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void JSONWriteVeryVerboseBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 0, true, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(556034, 0, true, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void JSONWriteVeryVerbosePrettyBlock_1MB(benchmark::State &state) {
-    JSONReadWriteBlock(413567, 4, true, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(413567, 4, true, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 static void JSONWriteVeryVerbosePrettyBlock_32MB(benchmark::State &state) {
-    JSONReadWriteBlock(556034, 4, true, state, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    JSONReadWriteBlock(556034, 4, true, state, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 
 BENCHMARK(JSONReadBlock_1MB, 18);

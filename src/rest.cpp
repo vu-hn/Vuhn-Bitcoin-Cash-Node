@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -205,7 +205,7 @@ static bool rest_headers(const std::any& context, Config &config, HTTPRequest *r
 }
 
 static bool rest_block(const Config &config, HTTPRequest *req,
-                       const std::string &strURIPart, TxVerbosity tx_verbosity) {
+                       const std::string &strURIPart, const TransactionFormatOptions &txOptions) {
     if (!CheckWarmup(req)) {
         return false;
     }
@@ -259,7 +259,7 @@ static bool rest_block(const Config &config, HTTPRequest *req,
         case RetFormat::JSON: {
             CBlock block;
             VectorReader(SER_NETWORK, PROTOCOL_VERSION, rawBlock, 0) >> block;
-            UniValue::Object objBlock = blockToJSON(config, block, tip, pblockindex, tx_verbosity);
+            UniValue::Object objBlock = blockToJSON(config, block, tip, pblockindex, txOptions);
             std::string strJSON = UniValue::stringify(objBlock) + "\n";
             req->WriteHeader("Content-Type", "application/json");
             req->WriteReply(HTTP_OK, strJSON);
@@ -276,17 +276,17 @@ static bool rest_block(const Config &config, HTTPRequest *req,
 
 static bool rest_block_extended_with_patterns(const std::any &, Config &config, HTTPRequest *req,
                                               const std::string &strURIPart) {
-    return rest_block(config, req, strURIPart, TxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS);
+    return rest_block(config, req, strURIPart, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT_AND_SCRIPT_PATTERNS);
 }
 
 static bool rest_block_extended(const std::any& context, Config &config, HTTPRequest *req,
                                 const std::string &strURIPart) {
-    return rest_block(config, req, strURIPart, TxVerbosity::SHOW_DETAILS_AND_PREVOUT);
+    return rest_block(config, req, strURIPart, BlockTxVerbosity::SHOW_DETAILS_AND_PREVOUT);
 }
 
 static bool rest_block_notxdetails(const std::any& context, Config &config, HTTPRequest *req,
                                    const std::string &strURIPart) {
-    return rest_block(config, req, strURIPart, TxVerbosity::SHOW_TXID);
+    return rest_block(config, req, strURIPart, BlockTxVerbosity::SHOW_TXID);
 }
 
 static bool rest_chaininfo(const std::any& context, Config &config, HTTPRequest *req,
@@ -416,7 +416,11 @@ static bool rest_tx(const std::any& context, Config &config, HTTPRequest *req,
         }
 
         case RetFormat::JSON: {
-            UniValue::Object objTx = TxToUniv(config, *tx, hashBlock, true);
+            const bool hasHash = !hashBlock.IsNull();
+            UniValue::Object objTx = TransactionToUniv(config, *tx, nullptr, TransactionFormatOptions().WithHex(), hasHash);
+            if (hasHash) {
+                objTx.emplace_back("blockhash", hashBlock.GetHex());
+            }
             std::string strJSON = UniValue::stringify(objTx) + "\n";
             req->WriteHeader("Content-Type", "application/json");
             req->WriteReply(HTTP_OK, strJSON);

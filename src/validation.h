@@ -367,11 +367,14 @@ std::optional<size_t> FindTransactionInBlock(const CBlock &block, const TxId &tx
 
 /**
  * Retrieve a transaction (from memory pool, or from disk, if possible).
+ * @params blockIndexOut - Optional out param, the block this tx lives in, if not a mempool tx, nullptr otherwise.
+ *                         Note that this block index may or may not be on the active chain.
  */
 bool GetTransaction(const TxId &txid, CTransactionRef &txOut,
                     const Consensus::Params &params, BlockHash &hashBlock,
                     bool fAllowSlow = false,
-                    const CBlockIndex *const blockIndex = nullptr);
+                    const CBlockIndex *const blockIndex = nullptr,
+                    const CBlockIndex **blockIndexOut = nullptr);
 
 /**
  * Find the best known block, and make it the tip of the block chain

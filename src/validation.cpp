@@ -945,20 +945,30 @@ FindTransactionInBlock(const Consensus::Params &params, const CBlockIndex *pinde
  */
 bool GetTransaction(const TxId &txid, CTransactionRef &txOut,
                     const Consensus::Params &params, BlockHash &hashBlock,
-                    bool fAllowSlow, const CBlockIndex *const blockIndex) {
+                    bool fAllowSlow, const CBlockIndex *const blockIndex,
+                    const CBlockIndex **blockIndexOut) {
     CBlockIndex const *pindexSlow = blockIndex;
+    if (blockIndexOut) {
+        *blockIndexOut = nullptr; // nullptr indicates tx not found or tx is mempool tx
+    }
 
     LOCK(cs_main);
 
     if (!blockIndex) {
-        CTransactionRef ptx = g_mempool.get(txid);
-        if (ptx) {
+        if (CTransactionRef ptx = g_mempool.get(txid)) {
             txOut = ptx;
             return true;
         }
 
         if (g_txindex) {
-            return g_txindex->FindTx(txid, hashBlock, txOut);
+            if (g_txindex->FindTx(txid, hashBlock, txOut)) {
+                if (blockIndexOut) {
+                    *blockIndexOut = LookupBlockIndex(hashBlock);
+                }
+                return true;
+            } else {
+                return false;
+            }
         }
 
         // use coin database to locate block that contains transaction, and scan
@@ -979,6 +989,9 @@ bool GetTransaction(const TxId &txid, CTransactionRef &txOut,
             if (txPos.has_value()) {
                 txOut = block.vtx[*txPos];
                 hashBlock = pindexSlow->GetBlockHash();
+                if (blockIndexOut) {
+                    *blockIndexOut = pindexSlow;
+                }
                 return true;
             }
         }

@@ -44,23 +44,30 @@
 
 #include <univalue.h>
 
-static UniValue::Object TxToJSON(const Config &config, const CTransaction &tx, const BlockHash &hashBlock) {
-    // Call into TxToUniv() in bitcoin-common to decode the transaction hex.
+static UniValue::Object TxToJSON(const Config &config, const CTransaction &tx, const BlockHash &hashBlock,
+                                 const CTxUndo *txundo, const TransactionFormatOptions &options) {
+    const bool hasHash = !hashBlock.IsNull();
+    const CBlockIndex *pindex{};
+    bool inActiveChain{};
+    size_t extraReserve = 0;
+
+    if (hasHash) {
+        LOCK(cs_main);
+
+        pindex = LookupBlockIndex(hashBlock);
+        inActiveChain = pindex && ::ChainActive().Contains(pindex);
+        extraReserve = 1u + (pindex ? (inActiveChain ? 3u : 1u) : 0u);
+    }
+    // Call into TransactionToUniv() in core_io to decode transaction and prevout data.
     //
     // Blockchain contextual information (confirmations and blocktime) is not
     // available to code in bitcoin-common, so we query them here and push the
     // data into the returned UniValue.
-    UniValue::Object entry = TxToUniv(config, tx, uint256(), true);
+    UniValue::Object entry = TransactionToUniv(config, tx, txundo, options, extraReserve);
 
-    if (!hashBlock.IsNull()) {
-        LOCK(cs_main);
-
-        CBlockIndex *pindex = LookupBlockIndex(hashBlock);
-        bool blockFound = pindex;
-        bool inActiveChain = blockFound && ::ChainActive().Contains(pindex);
-        entry.reserve(entry.size() + (blockFound ? inActiveChain ? 4 : 2 : 1));
+    if (hasHash) {
         entry.emplace_back("blockhash", hashBlock.GetHex());
-        if (blockFound) {
+        if (pindex) {
             if (inActiveChain) {
                 entry.emplace_back("confirmations", 1 + ::ChainActive().Height() - pindex->nHeight);
                 entry.emplace_back("time", pindex->GetBlockTime());
@@ -74,39 +81,17 @@ static UniValue::Object TxToJSON(const Config &config, const CTransaction &tx, c
     return entry;
 }
 
-// Preconditions:
-// - `tx` is not null and is *not* a coinbase txn
-// - `result` already has a key named `vin` with an array of objects of size tx->vin.size()
-// Postconditions:
-// - `result` will be populated with an additional `fee` key and each of the inputs in the `vin` array will also have
-//   2-3 additional keys added: `value`, `scriptPubKey` and, if applicable, `tokenData`.
-// May throw if it cannot satisfy the postconditions (e.g. cannot find prevouts)
-static void getrawtransaction_verbosity_2_helper(const Config &config, const CTransactionRef &tx,
-                                                 UniValue::Object &result, bool &f_txindex_ready,
-                                                 const CBlockIndex *blockindex, const BlockHash &hash_block) {
+/** Get undo information (input coins) for a tx. This is a helper for getrawtransaction. It first tries a fast path by
+ *  reading the undo information from disk, and if that fails, it falls-back to reading each transaction's prevouts and
+ *  attempting to fetch the previous txns for this transaction to re-create the undo info.
+ *  @return A CTxUndo object which will be populated with the coins spent by this transaction.
+ *  @throw May throw JSONRPCError if this function cannot populate the undo object (e.g. cannot find prevouts)
+ */
+static CTxUndo GetTxUndo(const Config &config, const CTransaction &tx, bool &f_txindex_ready,
+                         const CBlockIndex *blockindex, const BlockHash &hash_block) {
     const CChainParams &params = config.GetChainParams();
-    Amount valueIn;
-    UniValue::Array &resultVinArr = result.at("vin").get_array();
     bool usedUndo = false;
-
-    auto UpdateInputAndTallyFee = [&](size_t vinIndex, const CTxOut &prevTxOut) {
-        const Amount value = prevTxOut.nValue;
-        if (!MoneyRange(value)) {
-            // This should never happen
-            throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Input %i has invalid value %s for txid %s",
-                                                             vinIndex, value.ToString(), tx->GetId().ToString()));
-        }
-        // Tally fee and update result json for this input
-        valueIn += value;
-        UniValue::Object &resultForThisInput = resultVinArr.at(vinIndex).get_obj();
-        const bool hasTokenData = prevTxOut.tokenDataPtr;
-        resultForThisInput.reserve(resultForThisInput.size() + 2u + unsigned(hasTokenData));
-        resultForThisInput.emplace_back("value", ValueFromAmount(value));
-        resultForThisInput.emplace_back("scriptPubKey", ScriptToUniv(config, prevTxOut.scriptPubKey, /*include_address=*/true));
-        if (hasTokenData) {
-            resultForThisInput.emplace_back("tokenData", TokenDataToUniv(*prevTxOut.tokenDataPtr));
-        }
-    };
+    CTxUndo undoOut;
 
     // If txindex is not available, use undo data (if available) to get the prevouts
     if (!g_txindex) {
@@ -130,15 +115,20 @@ static void getrawtransaction_verbosity_2_helper(const Config &config, const CTr
             };
             if (ReadBlockAndUndo()) {
                 // Find the txn index in the block (needed to find the undo info)
-                std::optional<size_t> txPos = FindTransactionInBlock(params.GetConsensus(), blockindex, block, tx->GetId(),
+                std::optional<size_t> txPos = FindTransactionInBlock(params.GetConsensus(), blockindex, block, tx.GetId(),
                                                                      isOnActiveChain);
                 if (txPos.has_value() && *txPos > 0) {
                     usedUndo = true;
-                    const CTxUndo &txundo = blockUndo.vtxundo.at(*txPos - 1); // txundo is off-by-1 due to coinbase
+                    CTxUndo &txundo = blockUndo.vtxundo.at(*txPos - 1); // txundo is off-by-1 due to coinbase
 
-                    for (size_t vinIndex = 0u; vinIndex < tx->vin.size(); ++vinIndex) {
-                        UpdateInputAndTallyFee(vinIndex, txundo.vprevout.at(vinIndex).GetTxOut());
+                    if (txundo.vprevout.size() != tx.vin.size()) [[unlikely]] {
+                        // This should never happen (indicates db corruption)
+                        throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Bad undo info for txid %s (block: %s)",
+                                                                         tx.GetId().ToString(),
+                                                                         blockindex->GetBlockHash().ToString()));
                     }
+
+                    undoOut = std::move(txundo);
                 }
             }
         }
@@ -152,21 +142,33 @@ static void getrawtransaction_verbosity_2_helper(const Config &config, const CTr
             f_txindex_ready = g_txindex->BlockUntilSyncedToCurrentChain();
         }
 
-        std::unordered_map<TxId, CTransactionRef, SaltedTxIdHasher> txcache;
-        txcache.reserve(tx->vin.size());
+        struct TxWithInfo {
+            CTransactionRef tx;
+            uint32_t height{};
+            bool isCoinbase{};
+            TxWithInfo(const CTransactionRef &txIn, uint32_t heightIn, bool cbIn)
+                : tx{txIn}, height{heightIn}, isCoinbase{cbIn} {}
+        };
+        std::unordered_map<TxId, TxWithInfo, SaltedTxIdHasher> txcache;
+        txcache.reserve(tx.vin.size());
 
-        size_t vinIndex = 0u;
-        for (const CTxIn& txin : tx->vin) {
-            CTransactionRef prevoutTx;
+        const uint32_t mempoolHeight = WITH_LOCK(cs_main, return ::ChainActive().Height() + 1u);
+        undoOut.vprevout.reserve(tx.vin.size());
+
+        for (const CTxIn& txin : tx.vin) {
+            const TxWithInfo *txWithInfo{};
 
             if (const auto findIter = txcache.find(txin.prevout.GetTxId()); findIter == txcache.end()) {
+                CTransactionRef prevoutTx;
                 BlockHash dummy;
                 std::string errmsg;
+                const CBlockIndex *pindexFound{};
+                const TxId &prevTxId = txin.prevout.GetTxId();
 
                 // Try to search for a prevout transaction in the mempool and/or in the txindex (if enabled).
                 // As a fallback, GetTransaction() below will also attempt to find the appropriate txn in a block
                 // via (slow) utxodb scans and reading-in of block files.
-                if (!GetTransaction(txin.prevout.GetTxId(), prevoutTx, params.GetConsensus(), dummy, true, nullptr)) {
+                if (!GetTransaction(prevTxId, prevoutTx, params.GetConsensus(), dummy, true, nullptr, &pindexFound)) {
                     if (!g_txindex) {
                         errmsg = "An input's transaction was not found in the mempool or blockchain."
                                  " Use -txindex to enable blockchain transaction queries.";
@@ -180,25 +182,19 @@ static void getrawtransaction_verbosity_2_helper(const Config &config, const CTr
                                        "Failed to fetch transaction with id " + txin.prevout.GetTxId().ToString()
                                        + " for fee calculation. " + errmsg);
                 }
-                txcache.emplace(txin.prevout.GetTxId(), prevoutTx);
+                const uint32_t height = pindexFound ? pindexFound->nHeight : mempoolHeight;
+                txWithInfo = &txcache.try_emplace(prevTxId, prevoutTx, height, prevoutTx->IsCoinBase()).first->second;
             } else {
-                prevoutTx = findIter->second;
+                txWithInfo = &findIter->second;
             }
+            assert(txWithInfo != nullptr);
+            const auto & [prevTx, height, isCoinbase] = *txWithInfo;
+            const CTxOut &prevTxOut = prevTx->vout.at(txin.prevout.GetN());
 
-            UpdateInputAndTallyFee(vinIndex, prevoutTx->vout.at(txin.prevout.GetN()));
-
-            ++vinIndex;
+            undoOut.vprevout.emplace_back(prevTxOut, height, isCoinbase);
         }
     }
-
-    // Calculate the transaction fee and update the output json
-    const Amount fee(valueIn - tx->GetValueOut());
-    if (!MoneyRange(fee)) {
-        // This should never happen
-        throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Calculated fee %s is not a valid amount for txid %s",
-                                                         fee.ToString(), tx->GetId().ToString()));
-    }
-    result.emplace_back("fee", ValueFromAmount(fee));
+    return undoOut;
 }
 
 static UniValue getrawtransaction(const Config &config,
@@ -254,7 +250,6 @@ static UniValue getrawtransaction(const Config &config,
             "         \"asm\": \"asm\",  (string) asm\n"
             "         \"hex\": \"hex\"   (string) hex\n"
             "       },\n"
-            "       \"sequence\": n      (numeric) The script sequence number\n"
             "       \"value\" : x.xxx,   (numeric) The input value in " +
             CURRENCY_UNIT + " (available at verbosity level 2)\n"
             "       \"scriptPubKey\" : {          (json object) The previous output's locking script (available at verbosity level 2)\n"
@@ -270,6 +265,7 @@ static UniValue getrawtransaction(const Config &config,
             "           \"capability\" : \"xxx\",   (string) One of \"none\", \"mutable\", \"minting\"\n"
             "           \"commitment\" : \"hex\"    (string) NFT commitment formatted as hexadecimal\n"
             "         },\n"
+            "       \"sequence\": n      (numeric) The script sequence number\n"
             "       }\n"
             "     }\n"
             "     ,...\n"
@@ -302,6 +298,8 @@ static UniValue getrawtransaction(const Config &config,
             "     }\n"
             "     ,...\n"
             "  ],\n"
+            "  \"fee\" : x.xxx,            (numeric) Transaction fee in " +
+            CURRENCY_UNIT + " (available at verbosity level 2)\n"
             "  \"blockhash\" : \"hash\",   (string) the block hash\n"
             "  \"confirmations\" : n,      (numeric) The confirmations\n"
             "  \"time\" : ttt,             (numeric) The transaction time in "
@@ -311,14 +309,13 @@ static UniValue getrawtransaction(const Config &config,
             "  \"in_active_chain\": b  (bool) Whether specified block is in "
             "the active chain or not (only present with explicit \"blockhash\" "
             "argument)\n"
-            "  \"fee\" : x.xxx,            (numeric) Transaction fee in " +
-            CURRENCY_UNIT + " (available at verbosity level 2)\n"
             "}\n"
 
             "\nExamples:\n" +
             HelpExampleCli("getrawtransaction", "\"mytxid\"") +
             HelpExampleCli("getrawtransaction", "\"mytxid\" true") +
             HelpExampleRpc("getrawtransaction", "\"mytxid\", true") +
+            HelpExampleCli("getrawtransaction", "\"mytxid\" 2") +
             HelpExampleCli("getrawtransaction",
                            "\"mytxid\" false \"myblockhash\"") +
             HelpExampleCli("getrawtransaction",
@@ -351,11 +348,11 @@ static UniValue getrawtransaction(const Config &config,
     }
 
     // At minimal verbosity level 1 we return transaction deserialized into json
-    bool fVerbose = verbosityLevel >= 1;
+    const bool fVerbose = verbosityLevel >= 1;
 
     // At verbosity level 2 we lookup the transaction's prevouts
     // get their values and calculate transaction fee
-    bool fGetPrevouts = verbosityLevel >= 2;
+    const bool fGetPrevouts = verbosityLevel >= 2;
 
     if (!request.params[2].isNull()) {
         LOCK(cs_main);
@@ -396,14 +393,24 @@ static UniValue getrawtransaction(const Config &config,
         return EncodeHexTx(*tx);
     }
 
-    UniValue::Object result = TxToJSON(config, *tx, hash_block);
-    if (blockindex) {
-        result.emplace_back("in_active_chain", in_active_chain);
+    // Grab CTxUndo for non-coinbase txn iff verbosity >= 2, which can be used by TxToJSON below
+    std::optional<CTxUndo> txUndo;
+    if (fGetPrevouts && !tx->IsCoinBase()) {
+        txUndo = GetTxUndo(config, *tx, f_txindex_ready, blockindex, hash_block);
     }
 
-    // Fill in fee info, and inputs' value info, for non-coinbase txn iff verbosity >= 2
-    if (fGetPrevouts && !tx->IsCoinBase()) {
-        getrawtransaction_verbosity_2_helper(config, tx, result, f_txindex_ready, blockindex, hash_block);
+    TransactionFormatOptions options;
+    if (verbosityLevel >= 1) {
+        options.include_hex = true;
+    }
+    if (verbosityLevel >= 2) {
+        options.include_fee = true;
+        options.prevout_options.emplace();
+    }
+
+    UniValue::Object result = TxToJSON(config, *tx, hash_block, txUndo ? &*txUndo : nullptr, options);
+    if (blockindex) {
+        result.emplace_back("in_active_chain", in_active_chain);
     }
 
     return result;
@@ -890,7 +897,7 @@ static UniValue decoderawtransaction(const Config &config,
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
     }
 
-    return TxToUniv(config, CTransaction(std::move(mtx)), uint256(), false);
+    return TransactionToUniv(config, CTransaction(std::move(mtx)));
 }
 
 static UniValue decodescript(const Config &config,
@@ -1632,7 +1639,7 @@ static UniValue decodepsbt(const Config &config,
     UniValue::Object result;
 
     // Add the decoded tx
-    result.emplace_back("tx", TxToUniv(config, CTransaction(*CHECK_NONFATAL(psbtx.tx)), uint256(), false));
+    result.emplace_back("tx", TransactionToUniv(config, CTransaction(*CHECK_NONFATAL(psbtx.tx))));
 
     // Unknown data
     if (!psbtx.unknown.empty()) {
