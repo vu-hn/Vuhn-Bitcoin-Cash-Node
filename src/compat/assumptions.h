@@ -74,6 +74,9 @@ static_assert(std::is_same<uint8_t, unsigned char>::value,
 // Assumption: We assume Two's complement representation for negative numbers.
 static_assert(static_cast<int>(0xffffffff) == -1, "Two's complement representation for negative numbers assumed");
 
+// Assumption: Right-shifting negative signed integers performs arithmetic (sign-propagating) shift.
+static_assert((-8 >> 1) == -4, "Arithmetic right shift for negative signed integers assumed");
+
 // Assumption: 64-bit or greater architecture
 static_assert(std::numeric_limits<uintptr_t>::max() >= std::numeric_limits<uint64_t>::max(),
               "Minimum 64-bit platform is required to compile this codebase");
