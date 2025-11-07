@@ -134,6 +134,9 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         parser.add_argument("--with-upgrade12activation", dest="upgrade12activation", default=False,
                             action="store_true",
                             help="Activate May 2026 (upgrade 12) update on timestamp {}".format(TIMESTAMP_IN_THE_PAST))
+        parser.add_argument("--with-upgrade2027activation", dest="upgrade2027activation", default=False,
+                            action="store_true",
+                            help="Activate May 2027 update on timestamp {}".format(TIMESTAMP_IN_THE_PAST))
         parser.add_argument("--extra-bitcoind-args", dest="extra_bitcoind_args", default="",
                             help="Start bitcoind with these additional arguments (comma separated)")
         self.add_options(parser)
@@ -352,7 +355,10 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
             ))
             if self.options.upgrade12activation:
                 self.nodes[i].extend_default_args(
-                    ["-upgrade12activationtime={}".format(TIMESTAMP_IN_THE_PAST), "-expire=0"])
+                    ["-upgrade12activationtime={}".format(TIMESTAMP_IN_THE_PAST)])
+            if self.options.upgrade2027activation:
+                self.nodes[i].extend_default_args(
+                    ["-upgrade2027activationtime={}".format(TIMESTAMP_IN_THE_PAST), "-expire=0"])
             if len(self.options.extra_bitcoind_args):
                 self.nodes[i].extend_default_args(
                     self.options.extra_bitcoind_args.split(","))
