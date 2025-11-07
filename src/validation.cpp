@@ -1563,6 +1563,10 @@ static uint32_t GetNextBlockScriptFlags(const Consensus::Params &params, const C
         flags |= SCRIPT_ENABLE_MAY2025;
     }
 
+    if (IsUpgrade12Enabled(params, pindex)) {
+        flags |= SCRIPT_ENABLE_MAY2026;
+    }
+
     return flags;
 }
 

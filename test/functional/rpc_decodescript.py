@@ -29,7 +29,7 @@ class DecodeScriptTest(BitcoinTestFramework):
         rpc_result = self.nodes[0].decodescript(push_signature)
         assert_equal(signature, rpc_result['asm'])
         assert 'reqSigs' not in rpc_result
-        assert_equal('nonstandard', rpc_result['type'])
+        assert_equal('script', rpc_result['type'])
         assert 'addresses' not in rpc_result
         assert_equal('bchreg:pqcelzf04c0k40ngx4f24dc8zr2mqstqyusveenvss', rpc_result['p2sh'])
 
@@ -37,7 +37,7 @@ class DecodeScriptTest(BitcoinTestFramework):
         rpc_result = self.nodes[0].decodescript(push_signature + push_public_key)
         assert_equal(signature + ' ' + public_key, rpc_result['asm'])
         assert 'reqSigs' not in rpc_result
-        assert_equal('nonstandard', rpc_result['type'])
+        assert_equal('script', rpc_result['type'])
         assert 'addresses' not in rpc_result
         assert_equal('bchreg:ppzuwl0gnrzrkvac57rj4vvgpmj7gaulrsqcud3lwf', rpc_result['p2sh'])
 
@@ -47,7 +47,7 @@ class DecodeScriptTest(BitcoinTestFramework):
         rpc_result = self.nodes[0].decodescript('00' + push_signature + push_signature)
         assert_equal('0 ' + signature + ' ' + signature, rpc_result['asm'])
         assert 'reqSigs' not in rpc_result
-        assert_equal('nonstandard', rpc_result['type'])
+        assert_equal('script', rpc_result['type'])
         assert 'addresses' not in rpc_result
         assert_equal('bchreg:pq8n9kr6ye6heaxa8s64d225thxz7t64nql7350qz7', rpc_result['p2sh'])
 
@@ -58,7 +58,7 @@ class DecodeScriptTest(BitcoinTestFramework):
         rpc_result = self.nodes[0].decodescript('5100')
         assert_equal('1 0', rpc_result['asm'])
         assert 'reqSigs' not in rpc_result
-        assert_equal('nonstandard', rpc_result['type'])
+        assert_equal('script', rpc_result['type'])
         assert 'addresses' not in rpc_result
         assert_equal('bchreg:pq42f3g7mt8h9qaf3dxq9u3dk8fm22unvqv2l22pjr', rpc_result['p2sh'])
 
@@ -150,7 +150,7 @@ class DecodeScriptTest(BitcoinTestFramework):
             ' OP_CHECKSIG',
             rpc_result['asm'])
         assert 'reqSigs' not in rpc_result
-        assert_equal('nonstandard', rpc_result['type'])
+        assert_equal('script', rpc_result['type'])
         assert 'addresses' not in rpc_result
         assert_equal('bchreg:pq8s6jh54dp8u2693h8v90r68dlr8vn9dq5h6x2leg', rpc_result['p2sh'])
 

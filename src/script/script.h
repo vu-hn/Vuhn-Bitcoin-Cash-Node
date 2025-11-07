@@ -14,6 +14,7 @@
 #include <script/vm_limits.h> // for constants MAX_SCRIPT_SIZE, MAX_STACK_SIZE, etc
 #include <serialize.h>
 
+#include <bit>
 #include <cassert>
 #include <climits>
 #include <compare>
@@ -23,6 +24,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -61,11 +63,13 @@ enum opcodetype {
 
     // control
     OP_NOP = 0x61,
-    OP_VER = 0x62,
+    OP_VER = 0x62,            // Historical (early Bitcoin)
     OP_IF = 0x63,
     OP_NOTIF = 0x64,
-    OP_VERIF = 0x65,
-    OP_VERNOTIF = 0x66,
+    /* OP_VERIF = 0x65, */    // Historical (early Bitcoin)
+    /* OP_VERNOTIF = 0x66, */ // Historical (early Bitcoin)
+    OP_BEGIN = 0x65,          // after upgrade12 (May 2026)
+    OP_UNTIL = 0x66,          // after upgrade12 (May 2026)
     OP_ELSE = 0x67,
     OP_ENDIF = 0x68,
     OP_VERIFY = 0x69,
@@ -100,20 +104,24 @@ enum opcodetype {
     OP_SIZE = 0x82,
 
     // bit logic
-    OP_INVERT = 0x83,
+    OP_INVERT = 0x83, // after upgrade12 (May 2026); Existed in early Bitcoin before being disabled.
     OP_AND = 0x84,
     OP_OR = 0x85,
     OP_XOR = 0x86,
     OP_EQUAL = 0x87,
     OP_EQUALVERIFY = 0x88,
-    OP_RESERVED1 = 0x89,
-    OP_RESERVED2 = 0x8a,
+
+    // function support
+    OP_DEFINE = 0x89, // after upgrade12 (May 2026), was: OP_RESERVED1
+    OP_INVOKE = 0x8a, // after upgrade12 (May 2026), was: OP_RESERVED2
 
     // numeric
     OP_1ADD = 0x8b,
     OP_1SUB = 0x8c,
-    OP_2MUL = 0x8d,
-    OP_2DIV = 0x8e,
+    /* OP_2MUL = 0x8d, */ // Historical (early Bitcoin)
+    /* OP_2DIV = 0x8e, */ // Historical (early Bitcoin)
+    OP_LSHIFTNUM = 0x8d, // after upgrade12 (May 2026); arithmetic left-shift, defined as in C++20
+    OP_RSHIFTNUM = 0x8e, // after upgrade12 (May 2026); arithmetic right-shift, defined as in C++20
     OP_NEGATE = 0x8f,
     OP_ABS = 0x90,
     OP_NOT = 0x91,
@@ -124,8 +132,10 @@ enum opcodetype {
     OP_MUL = 0x95,
     OP_DIV = 0x96,
     OP_MOD = 0x97,
-    OP_LSHIFT = 0x98,
-    OP_RSHIFT = 0x99,
+    /* OP_LSHIFT = 0x98, */ // Historical (early Bitcoin)
+    /* OP_RSHIFT = 0x99, */ // Historical (early Bitcoin)
+    OP_LSHIFTBIN = 0x98, // after upgrade12 (May 2026); binary blob left-shift (non-arithmetic)
+    OP_RSHIFTBIN = 0x99, // after upgrade12 (May 2026); binary blob right-shift (non-arithmetic)
 
     OP_BOOLAND = 0x9a,
     OP_BOOLOR = 0x9b,
@@ -227,12 +237,17 @@ const char *GetOpName(opcodetype opcode);
  */
 bool CheckMinimalPush(const std::vector<uint8_t> &data, opcodetype opcode);
 
-struct scriptnum_error : std::runtime_error {
+// Used by EvalScript() internally in interpreter.cpp
+struct ScriptEvaluationError : std::runtime_error {
     ScriptError scriptError;
-    explicit
-    scriptnum_error(const std::string &str, ScriptError err = ScriptError::UNKNOWN)
-        : std::runtime_error(str), scriptError(err)
-    {}
+    explicit ScriptEvaluationError(const std::string &str, ScriptError err = ScriptError::UNKNOWN)
+        : std::runtime_error(str), scriptError(err) {}
+    explicit ScriptEvaluationError(ScriptError err) : ScriptEvaluationError(ScriptErrorString(err), err) {}
+};
+
+// Subclass of above, used in the ScriptNum classes below to indicate encoding, overflow, or other script num error.
+struct scriptnum_error : ScriptEvaluationError {
+    using ScriptEvaluationError::ScriptEvaluationError;
 };
 
 /**
@@ -285,6 +300,7 @@ protected:
             return x > std::numeric_limits<int64_t>::min();
         }
     }
+
 
     static
     std::optional<Derived> derivedIfInRange(IntType x) {
@@ -570,7 +586,6 @@ public:
         return static_cast<Derived &>(*this);
     }
 
-
     Derived &operator%=(Derived const& x) noexcept(!UsesBigInt) {
         return operator%=(x.value_);
     }
@@ -608,6 +623,62 @@ public:
         } else {
             return value_;
         }
+    }
+
+    /// Returns the number of characters needed to represent the contained absolute value if it were to be printed
+    /// as a binary string. Note: `0` returns 1, `-1` returns 1, `3` returns 2, `-3` returns 2, etc.
+    size_t absValNumBits() const {
+        if constexpr (UsesBigInt) {
+            return value_.absValNumBits();
+        } else {
+            const uint64_t uval = value_ < 0 ? -static_cast<uint64_t>(value_) // safely cast to positive
+                                             :  static_cast<uint64_t>(value_);
+            return std::max<unsigned>(1, std::bit_width(uval));
+        }
+    }
+
+    /// Performs operator<<= on the underlying value_; returns true if the result is in consensus-legal range, false
+    /// otherwise. Note that unlike the safe*() functions, on a false return `value_` *may or may not* remain shifted,
+    /// in other words the effects of this function are not guaranteed to get rolled-back on a false return.
+    [[nodiscard]]
+    bool checkedLeftShift(unsigned const bitcount) {
+        if (!value_) return true; // fast-path; 0 left-shifted any number of bits is 0
+        if (bitcount + absValNumBits() > MAX_BITS) {
+            // would definitely fail, don't even bother
+            return false;
+        }
+        if constexpr (UsesBigInt) {
+            value_ <<= static_cast<unsigned long>(bitcount);
+        } else {
+            bool const neg = value_ < 0;
+            uint64_t const uval = neg ? -static_cast<uint64_t>(value_) // safely cast to positive
+                                      :  static_cast<uint64_t>(value_);
+            value_ = static_cast<int64_t>(uval << bitcount);
+            if (neg) value_ = -value_;
+        }
+        return validRange(value_); // should always return true here, but checked for paranoia
+    }
+
+    /// Performs operator>>= on the underlying value_; returns true if the result is in consensus-legal range, false
+    /// otherwise. Note that unlike the safe*() functions, on a false return `value_` *may or may not* remain shifted,
+    /// in other words the effects of this function are not guaranteed to get rolled-back on a false return.
+    ///
+    /// False return is only possible if the original value was already outside of consensus-legal range, and
+    /// the result of the right-shift did nothing to correct the situation.
+    [[nodiscard]]
+    bool checkedRightShift(unsigned const bitcount) {
+        if (!value_) return true; // fast path; 0 right-shifted any number of bits is 0
+        if constexpr (UsesBigInt) {
+            if (bitcount >= absValNumBits()) {
+                // Fast-path, excessive right-shift yields -1 for negative & 0 for positive numbers
+                value_ = value_.sign() < 0 ? -1 : 0;
+                return true;
+            }
+            value_ >>= static_cast<unsigned long>(bitcount);
+        } else {
+            value_ >>= std::min(bitcount, 63u);
+        }
+        return validRange(value_);
     }
 };
 
@@ -682,12 +753,9 @@ struct ScriptNumCommon : ScriptIntBase<Derived, UsesBigInt>, ScriptNumEncoding {
         }
     }
 
-protected:
-    using Base::ScriptIntBase;
-    using IntType = typename Base::IntType;
-
+    /// Throws `scriptnum_error` if `vch` is not a valid script number encoding.
     static
-    IntType fromBytes(std::vector<uint8_t> const& vch, bool fRequireMinimal, size_t maxIntegerSize) {
+    void throwIfInvalidScriptNumEncoding(std::vector<uint8_t> const& vch, bool fRequireMinimal, size_t maxIntegerSize) {
         if (vch.size() > maxIntegerSize) {
             throw scriptnum_error("script number overflow",
                                   maxIntegerSize > 8u ? ScriptError::INVALID_NUMBER_RANGE_BIG_INT
@@ -697,6 +765,15 @@ protected:
         if (fRequireMinimal && ! IsMinimallyEncoded(vch, maxIntegerSize)) {
             throw scriptnum_error("non-minimally encoded script number", ScriptError::MINIMALNUM);
         }
+    }
+
+protected:
+    using Base::ScriptIntBase;
+    using IntType = typename Base::IntType;
+
+    static
+    IntType fromBytes(std::vector<uint8_t> const& vch, bool fRequireMinimal, size_t maxIntegerSize) {
+        throwIfInvalidScriptNumEncoding(vch, fRequireMinimal, maxIntegerSize);
         return Derived::set_vch(vch);
     }
 
@@ -958,6 +1035,14 @@ public:
 
     FastBigNum &negate() { std::visit([](auto &bn) { bn.negate(); }, var); return *this; }
 
+    size_t absValNumBits() const { return std::visit([](const auto &num){ return num.absValNumBits(); }, var); }
+
+    [[nodiscard]] bool checkedLeftShift(unsigned bitcount);
+
+    [[nodiscard]] bool checkedRightShift(unsigned bitcount) {
+        return std::visit([bitcount](auto &num){ return num.checkedRightShift(bitcount); }, var);
+    }
+
     std::strong_ordering operator<=>(const FastBigNum &o) const;
 
     std::strong_ordering operator<=>(const int64_t val) const {
@@ -975,11 +1060,11 @@ public:
  * elements. Tests in October 2015 showed use of this reduced dbcache memory
  * usage by 23% and made an initial sync 13% faster.
  */
-typedef prevector<28, uint8_t> CScriptBase;
+using CScriptBase = prevector<28, uint8_t>;
 
-bool GetScriptOp(CScriptBase::const_iterator &pc,
-                 CScriptBase::const_iterator end, opcodetype &opcodeRet,
-                 std::vector<uint8_t> *pvchRet);
+template <typename It, std::enable_if_t<   std::is_same_v<It, CScriptBase::const_iterator>
+                                        || std::is_same_v<It, const uint8_t *>, int> = 0>
+bool GetScriptOp(It &pc, It end, opcodetype &opcodeRet, std::vector<uint8_t> *pvchRet);
 
 /** Serialized script, used inside transaction inputs and outputs */
 class CScript : public CScriptBase {

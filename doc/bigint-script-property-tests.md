@@ -83,10 +83,10 @@ Generate and run these scripts for the tested `{opcode}`:
     - Fail: `{stack: 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
     - Fail: `{stack: a, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN {opcode} OP_DROP OP_1`
 - Binary opcodes:
-    - Fail: `{stack: a, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
-    - Fail: `{stack: a, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT OP_SWAP {opcode} OP_DROP OP_1`
+    - Fail: `{stack: a, n} OP_0 OP_SWAP OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
+    - Fail: `{stack: b, n} OP_0 OP_SWAP OP_NUM2BIN 0x0180 OP_CAT OP_SWAP {opcode} OP_DROP OP_1`
+    - Fail: `{stack: a, b, n} OP_ROT OP_SIZE OP_ROT OP_ADD OP_NUM2BIN OP_SWAP {opcode} OP_DROP OP_1`
     - Fail: `{stack: a, b, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN {opcode} OP_DROP OP_1`
-    - Fail: `{stack: a, b, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN OP_SWAP {opcode} OP_DROP OP_1`
 - Ternary opcodes:
     - Fail: `{stack: a, b, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
     - Fail: `{stack: a, b, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT OP_ROT {opcode} OP_DROP OP_1`
@@ -422,3 +422,72 @@ Note: consistency with OP_MUL and OP_DIV operations is part of [OP_DIV](#op_div-
     - Pass: `{stack: a} OP_DUP OP_DUP OP_WITHIN OP_0 OP_NUMEQUAL`
 - Equivalence: `within(a, b, c) == (a >= b && a < c)`
     - Pass: `{stack: a, b, c} OP_3DUP OP_WITHIN OP_3 OP_PICK OP_3 OP_ROLL OP_GREATERTHANOREQUAL OP_2SWAP OP_LESSTHAN OP_BOOLAND OP_NUMEQUAL`
+
+## Bitwise Operations
+
+### OP_INVERT (0x83)
+
+- Implementation using only xor: `~a = a ^ ~(binary_string_of_1s_equal_to_byte_length_of_a)`
+  - Pass: `{stack: binary_string_of_1s, a} OP_DUP OP_INVERT OP_SWAP OP_2 OP_ROLL OP_XOR OP_EQUAL
+- Implementation using shift, invert, and xor: `~a = a ^ ~(a << sizeof(a) * 8)`
+  - Pass: `{stack: a} OP_DUP OP_INVERT OP_SWAP OP_DUP OP_SIZE OP_8 OP_MUL OP_LSHIFTBIN OP_INVERT OP_XOR OP_EQUAL`
+- Double inversion: `invert(invert(a)) == a`
+  - Pass: `{stack: a} OP_DUP OP_INVERT OP_INVERT OP_EQUAL`
+- Byte-wise independence:
+  - Pass: `{stack: n, a} OP_DUP OP_ROT OP_SPLIT OP_INVERT OP_SWAP OP_INVERT OP_SWAP OP_CAT OP_SWAP OP_INVERT OP_EQUAL`
+
+### OP_LSHIFTNUM (0x8d)
+
+- Zero shift: `a << 0 == a`
+  - Pass: `{stack: a} OP_DUP OP_0 OP_LSHIFTNUM OP_NUMEQUAL`
+- Shift by 1: `a << 1 == a * 2`
+  - Pass: `{stack: a} OP_DUP OP_1 OP_LSHIFTNUM OP_SWAP OP_2 OP_MUL OP_NUMEQUAL`
+- Chain shift: `(a << m) << n == a << (m + n)`
+  - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_LSHIFTNUM OP_TOALTSTACK OP_TOALTSTACK OP_LSHIFTNUM OP_FROMALTSTACK OP_LSHIFTNUM OP_FROMALTSTACK OP_NUMEQUAL`
+- Range & overflow:
+  - Pass: `{stack: a, b} OP_LSHIFTNUM OP_DROP OP_1`, where b >= 0 and
+    - If a = 0 then pass for any b
+    - If a != 0 then pass only if a << b < MAX_SCRIPTNUM
+    - Fail: `{stack: a, b} OP_LSHIFTNUM OP_DROP OP_1`, with
+    - `ScriptError::INVALID_BIT_SHIFT` if a < 0
+    - `ScriptError::INVALID_NUMBER_RANGE_BIG_INT` if result would overflow
+
+### OP_RSHIFTNUM (0x8e)
+
+- Zero shift: `a >> 0 == a`
+  - Pass: `{stack: a} OP_DUP OP_0 OP_RSHIFTNUM OP_NUMEQUAL`
+- Shift by 1: `a >> 1 == a / 2` for a >= 0 and `a >> 1 == a / 2 + a % 2` for a < 0
+  - Pass: `{stack: a} OP_DUP OP_1 OP_RSHIFTNUM OP_SWAP OP_2 OP_OVER OP_0 OP_LESSTHAN OP_IF OP_2DUP OP_DIV OP_ROT OP_ROT OP_MOD OP_ADD OP_ELSE OP_DIV OP_ENDIF OP_NUMEQUAL`
+- Chain Shift: `(a >> m) >> n == a >> (m + n)`
+  - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_RSHIFTNUM OP_TOALTSTACK OP_TOALTSTACK OP_RSHIFTNUM OP_FROMALTSTACK OP_RSHIFTNUM OP_FROMALTSTACK OP_NUMEQUAL`
+- Range:
+  - Pass: `{stack: a, b} OP_RSHIFTNUM OP_DROP OP_1`, where b >= 0
+  - Fail: `{stack: a, b} OP_RSHIFTNUM OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`
+
+### OP_LSHIFTBIN (0x98)
+
+- Zero shift: `a << 0 == a`
+  - Pass: `{stack: a} OP_DUP OP_0 OP_LSHIFTBIN OP_EQUAL`
+- Length preservation: `size(a) == size(a >> n)`
+  - Pass: `{stack: a, n} OP_SWAP OP_SIZE OP_SWAP OP_ROT OP_LSHIFTBIN OP_SIZE OP_NIP OP_NUMEQUAL`
+- Left then right: `(a << n) >> n == a & (~0 >> n)`
+  - Pass: `{stack: a, n} OP_2DUP OP_DUP OP_ROT OP_SWAP OP_LSHIFTBIN OP_SWAP OP_RSHIFTBIN OP_ROT OP_ROT OP_SWAP OP_SIZE OP_0 OP_SWAP OP_NUM2BIN OP_INVERT OP_ROT OP_RSHIFTBIN OP_AND OP_EQUAL`
+- Chain shift: `(a << m) << n == a << (m + n)`
+  - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_LSHIFTBIN OP_TOALTSTACK OP_TOALTSTACK OP_LSHIFTBIN OP_FROMALTSTACK OP_LSHIFTBIN OP_FROMALTSTACK OP_EQUAL`
+- Range:
+  - Pass: `{stack: a, b} OP_LSHIFTBIN OP_DROP OP_1`, where b >= 0
+  - Fail: `{stack: a, b} OP_LSHIFTBIN OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`
+
+### OP_RSHIFTBIN (0x99)
+
+- Zero shift: `a >> 0 == a`
+  - Pass: `{stack: a} OP_DUP OP_0 OP_RSHIFTBIN OP_EQUAL`
+- Length preservation: `size(a) == size(a >> n)`
+  - Pass: `{stack: a, n} OP_SWAP OP_SIZE OP_SWAP OP_ROT OP_RSHIFTBIN OP_SIZE OP_NIP OP_NUMEQUAL`
+- Right then left: `(a >> n) << n == a & (~0 << n)`
+  - Pass: `{stack: a, n} OP_2DUP OP_DUP OP_ROT OP_SWAP OP_RSHIFTBIN OP_SWAP OP_LSHIFTBIN OP_ROT OP_ROT OP_SWAP OP_SIZE OP_0 OP_SWAP OP_NUM2BIN OP_INVERT OP_ROT OP_LSHIFTBIN OP_AND OP_EQUAL`
+- Chain shift: `(a >> m) >> n == a >> (m + n)`
+  - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_RSHIFTBIN OP_TOALTSTACK OP_TOALTSTACK OP_RSHIFTBIN OP_FROMALTSTACK OP_RSHIFTBIN OP_FROMALTSTACK OP_EQUAL`
+- Range:
+  - Pass: `{stack: a, b} OP_RSHIFTBIN OP_DROP OP_1`, where b >= 0
+  - Fail: `{stack: a, b} OP_RSHIFTBIN OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`

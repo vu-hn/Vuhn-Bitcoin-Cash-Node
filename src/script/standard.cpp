@@ -34,6 +34,8 @@ const char *GetTxnOutputType(txnouttype t) {
             return "multisig";
         case TX_NULL_DATA:
             return "nulldata";
+        case TX_SCRIPT:
+            return "script";
     }
     return nullptr;
 }
@@ -145,6 +147,12 @@ txnouttype Solver(const CScript &scriptPubKey, std::vector<std::vector<uint8_t>>
         return TX_MULTISIG;
     }
 
+    // After upgrade12: Any script that doesn't match any of the above and is <= 201 bytes is pay-to-script (p2s),
+    // and is considered standard.
+    if (flags & SCRIPT_ENABLE_MAY2026 && scriptPubKey.size() <= MAX_P2S_SCRIPT_SIZE) {
+        return TX_SCRIPT;
+    }
+
     vSolutionsRet.clear();
     return TX_NONSTANDARD;
 }
@@ -180,7 +188,8 @@ bool ExtractDestination(const CScript &scriptPubKey, CTxDestination &addressRet,
         }
         return true;
     }
-    // Multisig txns have more than one address...
+    // - Bare multisig txns have more than one address
+    // - p2s txns have no address
     return false;
 }
 

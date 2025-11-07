@@ -3,6 +3,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#if HAVE_CONFIG_H
+#include <config/bitcoin-config.h>
+#endif
+
 #include <random.h>
 #include <script/script.h>
 
@@ -11,8 +15,10 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include <climits>
+#include <algorithm>
+#include <bit>
 #include <cstdint>
+#include <cstdlib>
 #include <iterator>
 #include <limits>
 #include <type_traits>
@@ -883,6 +889,127 @@ void CheckCompare(int64_t a, int64_t b) {
 }
 
 static
+void CheckShift(const int64_t v) {
+    auto res = CScriptNum::fromInt(v);
+    auto res2 = ScriptBigInt::fromInt(v);
+    auto fastBigNum = FastBigNum::fromIntUnchecked(v);
+    BOOST_REQUIRE(res2);
+    BOOST_REQUIRE(res2->getint64().value() == v);
+    BOOST_REQUIRE(fastBigNum.getint64().value() == v);
+    if ( ! res) {
+        BOOST_CHECK(v == int64_t_min);
+    } else {
+        // test CScriptNum shift ops
+        const auto & csn = *res;
+        BOOST_REQUIRE(csn.getint64() == v);
+        const bool neg = v < 0;
+        const uint64_t uv = static_cast<uint64_t>(std::abs(v));
+        BOOST_CHECK_EQUAL(std::max<unsigned>(1, std::bit_width(uv)), csn.absValNumBits());
+        BOOST_CHECK_EQUAL(std::max<unsigned>(1, std::bit_width(uv)), res2->absValNumBits());
+        BOOST_CHECK_EQUAL(std::max<unsigned>(1, std::bit_width(uv)), fastBigNum.absValNumBits());
+        // for performance, don't run through every bit shift; intentionally attempt shifts in key spots, and past 63
+        constexpr size_t maxBits = ScriptBigInt::MAX_BITS;
+        const unsigned shiftAmts[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 22, 23, 24, 25, 26, 30, 31,
+                                      32, 33, 34, 61, 62, 63, 64, 65, 126, 127, 128, 129, 130, 1000,
+                                      maxBits - 10, maxBits - 1, maxBits, maxBits + 1};
+        for (const unsigned i : shiftAmts) {
+            // left shift
+            auto c = csn; // copy
+            ScriptBigInt sbi = *res2; // copy
+            FastBigNum fbn = fastBigNum; // copy
+            BOOST_REQUIRE(sbi.getint64() == v);
+            const bool okSbi = sbi.checkedLeftShift(i);
+            BOOST_REQUIRE(okSbi || i + sbi.absValNumBits() > ScriptBigInt::MAX_BITS);
+            BOOST_REQUIRE(fbn.getint64() == v);
+            const bool okFbn = fbn.checkedLeftShift(i);
+            BOOST_REQUIRE(okFbn || i + fbn.absValNumBits() > ScriptBigInt::MAX_BITS);
+            BOOST_CHECK(okSbi == okFbn);
+            BOOST_CHECK(!okSbi || !okFbn || sbi.getvch() == fbn.getvch());
+            const bool okC = c.checkedLeftShift(i);
+            BOOST_CHECK(!okC || (okSbi && okFbn)); // if int64 left-shift succeeded, then bigint-based should always succeed
+            if (okC) {
+                BOOST_CHECK(c == 0 || std::bit_width(uv) + i < 64);
+                BOOST_CHECK_EQUAL(c.absValNumBits(), fbn.absValNumBits());
+                const unsigned safe_i = std::min(i, 63u); // avoid UB in C++, since shifting past 63 is UB
+                const int64_t lshifted = neg ? -(uv << safe_i) : uv << safe_i;
+                BOOST_CHECK(c.getint64() != int64_t_min);
+                // check equality via getint64()
+                BOOST_CHECK(sbi.getint64().value() == c.getint64());
+                BOOST_CHECK(fbn.getint64().value() == c.getint64());
+                BOOST_CHECK(c.getint64() == lshifted);
+                // check operator==
+                BOOST_CHECK(c == lshifted);
+                BOOST_CHECK(sbi == lshifted);
+                BOOST_CHECK(fbn == lshifted);
+                // ensure inverse op returns us back to the same value
+                auto c2 = c;
+                BOOST_REQUIRE(c2 == c /* sanity check */);
+                BOOST_REQUIRE(c2.checkedRightShift(i));
+                BOOST_CHECK(c2.getint64() == v);
+                BOOST_CHECK(c2 == v);
+            } else {
+                BOOST_CHECK(c != 0 && std::bit_width(uv) + i > 63);
+            }
+
+            if (okSbi && okFbn) {
+                BOOST_CHECK_EQUAL(sbi.absValNumBits(), fbn.absValNumBits());
+                // ensure inverse op returns us back to the same value
+                auto sbi2 = sbi;
+                auto fbn2 = fbn;
+                BOOST_REQUIRE(sbi2 == sbi && fbn == fbn2 /* sanity check */);
+                BOOST_REQUIRE(sbi2.checkedRightShift(i));
+                BOOST_CHECK(sbi2 == v);
+                BOOST_CHECK(sbi2.getint64().value() == v);
+                BOOST_REQUIRE(fbn2.checkedRightShift(i));
+                BOOST_CHECK(fbn2 == v);
+                BOOST_CHECK(fbn2.getint64().value() == v);
+                BOOST_CHECK(sbi2.getvch() == fbn2.getvch());
+            }
+
+#if HAVE_INT128
+            if (std::bit_width(uv) + i < 128) {
+                BOOST_CHECK(okSbi && okFbn);
+                const BigInt::int128_t lshifted = static_cast<BigInt::int128_t>(v) << i;
+                BOOST_CHECK(sbi.getBigInt() == lshifted);
+            }
+#endif
+
+            // right shift
+            c = csn; // copy original v
+            sbi = *res2; // copy original v
+            fbn = fastBigNum; // copy of original
+            BOOST_REQUIRE(c.checkedRightShift(i)); // always succeeds
+            BOOST_REQUIRE(sbi.checkedRightShift(i)); // always succeeds
+            BOOST_REQUIRE(fbn.checkedRightShift(i)); // always succeeds
+            BOOST_CHECK(c.getvch() == sbi.getvch());
+            BOOST_CHECK(sbi.getvch() == fbn.getvch());
+            BOOST_CHECK((v < 0) == (c < 0)); // resulting sign of a right-shift must match
+            BOOST_CHECK((v < 0) == (sbi < 0)); // resulting sign of a right-shift must match
+            BOOST_CHECK((v < 0) == (fbn < 0)); // resulting sign of a right-shift must match
+            if (i >= unsigned(std::bit_width(uv))) {
+                // shifting more than number of bits in the number is supported; always yields -1 for neg, 0 for pos
+                BOOST_CHECK_EQUAL(c.getint64(), v < 0 ? -1 : 0);
+                BOOST_CHECK_EQUAL(sbi.getint64().value(), v < 0 ? -1 : 0);
+                BOOST_CHECK_EQUAL(fbn.getint64().value(), v < 0 ? -1 : 0);
+            }
+            if (i < 64) {
+                const int64_t rshifted = v >> i;
+                BOOST_CHECK(c.getint64() == rshifted);
+                BOOST_CHECK(sbi.getint64().value() == rshifted);
+                BOOST_CHECK(fbn.getint64().value() == rshifted);
+            }
+#if HAVE_INT128
+            if (i < 128) {
+                const BigInt::int128_t rshifted = static_cast<BigInt::int128_t>(v) >> i;
+                BOOST_CHECK(sbi.getBigInt().getInt128().value() == rshifted);
+                BOOST_CHECK(sbi.getBigInt() == rshifted);
+            }
+#endif
+        }
+    }
+}
+
+static
 void RunCreateOldRules(CScriptNum const& scriptx) {
     size_t const maxIntegerSize = CScriptNum::MAXIMUM_ELEMENT_SIZE_32_BIT;
     int64_t const x = scriptx.getint64();
@@ -1002,6 +1129,8 @@ void RunOperators(int64_t a, int64_t b) {
     CheckNegateOldRules(a);
     CheckNegateNewRules(a);
     CheckCompare(a, b);
+    CheckShift(a);
+    if (a != b) CheckShift(b);
 }
 
 BOOST_AUTO_TEST_CASE(creation) {

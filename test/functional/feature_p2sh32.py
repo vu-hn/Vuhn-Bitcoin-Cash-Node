@@ -57,6 +57,8 @@ class P2SH32Test(BitcoinTestFramework):
         self.num_nodes = 1
         self.setup_clean_chain = True
         self.base_extra_args = ['-acceptnonstdtxn=0', '-expire=0', '-whitelist=127.0.0.1']
+        # Need to force-disable upgrade12 as it interferes with the pre-activation portion of this test
+        self.base_extra_args += ['-upgrade12activationtime=9999999999']
         self.extra_args = [['-upgrade9activationheight=999999999'] + self.base_extra_args]
 
     @staticmethod

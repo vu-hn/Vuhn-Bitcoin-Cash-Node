@@ -22,11 +22,13 @@ class WalletP2SH32Test(BitcoinTestFramework):
 
     def set_test_params(self):
         self.num_nodes = 2
+        # Need to force-disable upgrade12 as it interferes with the pre-activation portion of this test
+        no_upgrade12 = '-upgrade12activationtime=9999999999'
         # node 0 does not accept non-std txns, node 1 does accept non-std txns
         self.extra_args = [['-upgrade9activationheight=999999999', '-acceptnonstdtxn=0', '-expire=0',
-                            '-whitelist=127.0.0.1', '-txbroadcastinterval=1'],
+                            '-whitelist=127.0.0.1', '-txbroadcastinterval=1', no_upgrade12],
                            ['-upgrade9activationheight=999999999', '-acceptnonstdtxn=1', '-expire=0',
-                            '-whitelist=127.0.0.1', '-txbroadcastinterval=1']]
+                            '-whitelist=127.0.0.1', '-txbroadcastinterval=1', no_upgrade12]]
         self.setup_clean_chain = True
 
     def skip_test_if_missing_module(self):
