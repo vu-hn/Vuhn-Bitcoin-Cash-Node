@@ -128,6 +128,9 @@ MAX_INV_BROADCAST_INTERVAL = 1_000_000
 # The number of blocks ahead of current tip that the node downloads from the p2p network
 BLOCK_DOWNLOAD_WINDOW = 1024
 
+# The maximuim size of a standard P2S script, post upgrade 12 activation
+MAX_P2S_SCRIPT_SIZE = 201
+
 # Ensure sanity of these constants
 if DEFAULT_MAX_GENERATED_BLOCK_SIZE > DEFAULT_CONSENSUS_BLOCK_SIZE:
     import sys

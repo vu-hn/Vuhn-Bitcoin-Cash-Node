@@ -51,7 +51,7 @@ std::string DumpStack(const StackT &stack) { // used for debugging
 [[nodiscard]]
 bool TestScript(const CScript &testScript, StackT &stack, ScriptError expectedError, bool suppressMsg = false) {
     constexpr uint32_t flags = STANDARD_SCRIPT_VERIFY_FLAGS
-                               | SCRIPT_64_BIT_INTEGERS | SCRIPT_ENABLE_MAY2025; // ensure BigInt enabled in script VM
+                               | SCRIPT_64_BIT_INTEGERS | SCRIPT_ENABLE_MAY2025 | SCRIPT_ENABLE_MAY2026;
     static const BaseSignatureChecker dummyChecker;
     ScriptError serror;
     //BOOST_TEST_MESSAGE("Before: " << DumpStack(stack));
@@ -210,68 +210,95 @@ void TestMinimalEncodingUnary(const opcodetype &opcode) {
 }
 
 // Minimally-encoded Operand Tests (Binary)
-//     - Fail: `{stack: a, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
-//     - Fail: `{stack: a, 0, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN 0x0180 OP_CAT OP_SWAP {opcode} OP_DROP OP_1`
+//     - Fail: `{stack: a, n} OP_0 OP_SWAP OP_NUM2BIN 0x0180 OP_CAT {opcode} OP_DROP OP_1`
+//     - Fail: `{stack: b, n} OP_0 OP_SWAP OP_NUM2BIN 0x0180 OP_CAT OP_SWAP {opcode} OP_DROP OP_1`
+//     - Fail: `{stack: a, b, n} OP_ROT OP_SIZE OP_ROT OP_ADD OP_NUM2BIN OP_SWAP {opcode} OP_DROP OP_1`
 //     - Fail: `{stack: a, b, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN {opcode} OP_DROP OP_1`
-//     - Fail: `{stack: a, b, n} OP_SWAP OP_SIZE OP_ROT OP_ADD OP_NUM2BIN OP_SWAP {opcode} OP_DROP OP_1`
-void TestMinimalEncodingBinary(const opcodetype &opcode) {
-    auto TestMinimalEncodingNegativeZero = [&](const BigInt &n) {
+void TestMinimalEncodingBinary(const opcodetype &opcode,
+                               bool onlyPositiveA = false, bool onlyPositiveB = false,
+                               BigInt maxA = MAX_SCRIPTNUM, BigInt maxB = MAX_SCRIPTNUM,
+                               unsigned char abflags = 0b11) {
+    auto TestMinimalEncodingNegativeZeroA = [&](const BigInt &n) {
         auto WithA = [&](const BigInt &a) {
             StackT stack = {BigInt(a).serialize(), BigInt(0).serialize(), n.serialize()};
-            CScript script = CScript() << OP_SWAP << OP_SIZE << OP_ROT << OP_ADD << OP_NUM2BIN
+            CScript script = CScript() << OP_0 << OP_SWAP << OP_NUM2BIN
                                        << opcodetype(0x01) << opcodetype(0x80) << OP_CAT
                                        << opcode << OP_DROP << OP_1;
             CHECK_MESSAGE(TestScript(script, stack, ScriptError::MINIMALNUM),
-                                "TestMinimalEncodingNegativeZeroI passed (expected to fail) for a = " << a.ToString() << ", n = " << n.ToString());
-
-            stack = {BigInt(a).serialize(), BigInt(0).serialize(), n.serialize()};
-            script = CScript() << OP_SWAP << OP_SIZE << OP_ROT << OP_ADD << OP_NUM2BIN
+                                "TestMinimalEncodingBinaryNegativeZeroA passed (expected to fail) for a = " << a.ToString() << ", n = " << n.ToString());
+        };
+        TestRange(WithA, 0, maxA, false, 700);
+        if (!onlyPositiveA) {
+            TestRange(WithA, 1, maxA, true, 700);
+        }
+    };
+    auto TestMinimalEncodingNegativeZeroB = [&](const BigInt &n) {
+        auto WithB = [&](const BigInt &a) {
+            StackT stack = {BigInt(a).serialize(), BigInt(0).serialize(), n.serialize()};
+            CScript script = CScript() << OP_0 << OP_SWAP << OP_NUM2BIN
                                        << opcodetype(0x01) << opcodetype(0x80) << OP_CAT
                                        << OP_SWAP // swap the operands for the 2nd run
                                        << opcode << OP_DROP << OP_1;
             CHECK_MESSAGE(TestScript(script, stack, ScriptError::MINIMALNUM),
-                                "TestMinimalEncodingNegativeZeroII passed (expected to fail) for a = " << a.ToString() << ", n = " << n.ToString());
+                                "TestMinimalEncodingBinaryNegativeZeroB passed (expected to fail) for b = " << a.ToString() << ", n = " << n.ToString());
         };
-        TestRange(WithA, 1, MAX_SCRIPTNUM, true, 700);
-        TestRange(WithA, 0, MAX_SCRIPTNUM, false, 700);
+        TestRange(WithB, 0, maxB, false, 700);
+        if (!onlyPositiveB) {
+            TestRange(WithB, 1, maxB, true, 700);
+        }
     };
 
     // n >= 0, "negative 0"
     // 0x80, 0x0080, 0x00..80
-    TestRange(TestMinimalEncodingNegativeZero, 0, MAX_ELEM_SIZE - 1, 700);
+    if (abflags & 0b01) {
+        TestRange(TestMinimalEncodingNegativeZeroA, 0, maxB.serialize().size() - 1, 700);
+    }
+    if (abflags & 0b10) {
+        TestRange(TestMinimalEncodingNegativeZeroB, 0, maxA.serialize().size() - 1, 700);
+    }
 
     auto TestMinimalEncoding = [&](const BigInt &a) {
         auto WithB = [&](const BigInt &b) {
+            auto aser = a.serialize();
             auto bser = b.serialize();
-            auto WithSize = [&](const BigInt &n) {
-                StackT stack = {a.serialize(), bser, n.serialize()};
+            auto WithSizeA = [&](const BigInt &n) {
+                StackT stack = {aser, bser, n.serialize()};
+                CScript script = CScript() << OP_ROT << OP_SIZE << OP_ROT << OP_ADD << OP_NUM2BIN << OP_SWAP
+                                           << opcode << OP_DROP << OP_1;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::MINIMALNUM),
+                                "TestMinimalEncodingBinaryA passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString() << ", n = " << n.ToString());
+            };
+            auto WithSizeB = [&](const BigInt &n) {
+                StackT stack = {aser, bser, n.serialize()};
                 CScript script = CScript() << OP_SWAP << OP_SIZE << OP_ROT << OP_ADD << OP_NUM2BIN
                                            << opcode << OP_DROP << OP_1;
                 CHECK_MESSAGE(TestScript(script, stack, ScriptError::MINIMALNUM),
-                                "TestMinimalEncodingI passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString() << ", n = " << n.ToString());
-
-                stack = {a.serialize(), bser, n.serialize()};
-                script = CScript() << OP_SWAP << OP_SIZE << OP_ROT << OP_ADD << OP_NUM2BIN
-                                           << OP_SWAP // swap the operands for the 2nd run
-                                           << opcode << OP_DROP << OP_1;
-                CHECK_MESSAGE(TestScript(script, stack, ScriptError::MINIMALNUM),
-                                "TestMinimalEncodingII passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString() << ", n = " << n.ToString());
+                                "TestMinimalEncodingBinaryB passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString() << ", n = " << n.ToString());
             };
-            size_t maxBytesToAdd = MAX_ELEM_SIZE - bser.size();
-            if (maxBytesToAdd > 0) {
-                // capture a & b, loop n
-                TestRange(WithSize, 1, maxBytesToAdd, 700);
+            size_t maxBytesToAddA = maxA.serialize().size() - aser.size();
+            size_t maxBytesToAddB = maxB.serialize().size() - bser.size();
+            if (maxBytesToAddA > 0 && (abflags & 0b10)) {
+                // capture a & b, loop n, pad A
+                TestRange(WithSizeA, 1, maxBytesToAddA, 700);
+            }
+            if (maxBytesToAddB > 0 && (abflags & 0b01)) {
+                // capture a & b, loop n, pad B
+                TestRange(WithSizeB, 1, maxBytesToAddB, 700);
             }
         };
-        // n > 0, b < 0
-        // 0x123480, 0x12340080, 0x12340000..80
-        TestRange(WithB, 1, MAX_SCRIPTNUM, true, 700);
         // n > 0, b >= 0
         // 0x123400, 0x12340000, 0x12340000..00
-        TestRange(WithB, 0, MAX_SCRIPTNUM, false, 700);
+        TestRange(WithB, 0, maxB/256, false, 700);
+        if (!onlyPositiveB) {
+            // n > 0, b < 0
+            // 0x123480, 0x12340080, 0x12340000..80
+            TestRange(WithB, 1, maxB/256, true, 700);
+        }
     };
-    TestRange(TestMinimalEncoding, 1, MAX_SCRIPTNUM, true, 700);
-    TestRange(TestMinimalEncoding, 0, MAX_SCRIPTNUM, false, 700);
+    TestRange(TestMinimalEncoding, 0, maxA/256, false, 700);
+    if (!onlyPositiveA) {
+        TestRange(TestMinimalEncoding, 1, maxA/256, true, 700);
+    }
 }
 
 // Minimally-encoded Operand Tests (Ternary)
@@ -2753,6 +2780,474 @@ BOOST_AUTO_TEST_CASE(op_within_tests) {
 
         TestRange(TestEquivalence, 0, MAX_SCRIPTNUM, true, 700);
         TestRange(TestEquivalence, 1, MAX_SCRIPTNUM, false, 700);
+    }
+}
+
+// OP_INVERT (0x83)
+BOOST_AUTO_TEST_CASE(op_invert_tests) {
+    // Stack Depth Tests
+    {
+        TestStack(0, 1, OP_INVERT);
+    }
+
+    // - Implementation using only xor: `~a = a ^ ~(binary_string_of_1s_equal_to_byte_length_of_a)`
+    //   - Pass: `{stack: binary_string_of_1s, a} OP_DUP OP_INVERT OP_SWAP OP_2 OP_ROLL OP_XOR OP_EQUAL
+    {
+        auto TestXOR = [](const BigInt &a) {
+            auto aser = a.serialize();
+            const size_t nBytes = aser.size();
+            std::vector<uint8_t> invertedData(nBytes, ~uint8_t{0u});
+            StackT stack = {std::move(invertedData), std::move(aser)};
+            CScript script = CScript() << OP_DUP << OP_INVERT << OP_SWAP << OP_2 << OP_ROLL << OP_XOR << OP_EQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestXOR failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestXOR, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestXOR, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Implementation using shift, invert, and xor: `~a = a ^ ~(a << sizeof(a) * 8)`
+    //   - Pass: `{stack: a} OP_DUP OP_INVERT OP_SWAP OP_DUP OP_SIZE OP_8 OP_MUL OP_LSHIFTBIN OP_INVERT OP_XOR OP_EQUAL`
+    {
+        auto TestShiftInvertXOR = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_INVERT << OP_SWAP << OP_DUP << OP_SIZE << OP_8 << OP_MUL << OP_LSHIFTBIN << OP_INVERT << OP_XOR << OP_EQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestShiftInvertXOR failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestShiftInvertXOR, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestShiftInvertXOR, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Double inversion: `invert(invert(a)) == a`
+    //   - Pass: `{stack: a} OP_DUP OP_INVERT OP_INVERT OP_EQUAL`
+    {
+        auto TestDoubleInversion = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_INVERT << OP_INVERT << OP_EQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestDoubleInversion failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestDoubleInversion, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestDoubleInversion, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Byte-wise independence:
+    //   - Pass: `{stack: n, a} OP_DUP OP_ROT OP_SPLIT OP_INVERT OP_SWAP OP_INVERT OP_SWAP OP_CAT OP_SWAP OP_INVERT OP_EQUAL`
+    {
+        auto TestByteWiseIndependence = [](const BigInt &a) {
+            auto aser = a.serialize();
+            auto WithN = [&](const BigInt &n) { 
+                StackT stack = {n.serialize(), aser};
+                CScript script = CScript() << OP_DUP << OP_ROT << OP_SPLIT << OP_INVERT << OP_SWAP << OP_INVERT << OP_SWAP << OP_CAT << OP_SWAP << OP_INVERT << OP_EQUAL;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestByteWiseIndependence failed (expected to pass)" << " for a = " << a.ToString() << ", n = " << n.ToString());
+            };
+
+            TestRange(WithN, 0, aser.size(), 700);
+        };
+
+        TestRange(TestByteWiseIndependence, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestByteWiseIndependence, 1, MAX_SCRIPTNUM, false, 100);
+    }
+}
+
+// OP_LSHIFTNUM (0x8d)
+BOOST_AUTO_TEST_CASE(op_lshiftnum_tests) {
+    // Stack Depth Tests
+    {
+        TestStack(1, 1, OP_LSHIFTNUM);
+    }
+
+    // Minimally-encoded Operand Tests
+    {
+        TestMinimalEncodingBinary(OP_LSHIFTNUM, false, true, MAX_SCRIPTNUM, MAX_SCRIPTNUM);
+    }
+
+    // - Zero shift: `a << 0 == a`
+    //   - Pass: `{stack: a} OP_DUP OP_0 OP_LSHIFTNUM OP_NUMEQUAL`
+    {
+        auto TestZeroShift = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_0 << OP_LSHIFTNUM << OP_NUMEQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestZeroShift failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestZeroShift, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestZeroShift, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Shift by 1: `a << 1 == a * 2`
+    //   - Pass: `{stack: a} OP_DUP OP_1 OP_LSHIFTNUM OP_SWAP OP_2 OP_MUL OP_NUMEQUAL`
+    {
+        auto TestShiftByOne = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_1 << OP_LSHIFTNUM << OP_SWAP << OP_2 << OP_MUL << OP_NUMEQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestShiftByOne failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestShiftByOne, 0, MAX_SCRIPTNUM / 2, true, 100);
+        TestRange(TestShiftByOne, 1, MAX_SCRIPTNUM / 2, false, 100);
+    }
+
+    // - Chain shift: `(a << m) << n == a << (m + n)`
+    //     - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_LSHIFTNUM OP_TOALTSTACK OP_TOALTSTACK OP_LSHIFTNUM OP_FROMALTSTACK OP_LSHIFTNUM OP_FROMALTSTACK OP_NUMEQUAL`
+    {
+        auto TestChainShift = [](const BigInt &a) {
+            auto WithM = [&](const BigInt &m) {
+                auto WithN = [&](const BigInt &n) {
+                    StackT stack = {a.serialize(), m.serialize(), n.serialize()};
+                    CScript script = CScript() << OP_3DUP << OP_ADD << OP_LSHIFTNUM << OP_TOALTSTACK << OP_TOALTSTACK
+                                               << OP_LSHIFTNUM << OP_FROMALTSTACK << OP_LSHIFTNUM << OP_FROMALTSTACK << OP_NUMEQUAL;
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestChainShift failed (expected to pass) for a = "
+                                        << a.ToString() << ", m = " << m.ToString() << ", n = " << n.ToString());
+                };
+                TestRange(WithN, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1 - *m.getUInt(), 700);
+            };
+            TestRange(WithM, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1, 700);
+        };
+
+        TestRange(TestChainShift, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestChainShift, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Range & overflow:
+    //     - Pass: `{stack: a, b} OP_LSHIFTNUM OP_DROP OP_1`, where b >= 0 and
+    //          - If a = 0 then pass for any b
+    //          - If a != 0 then pass only if a << b < MAX_SCRIPTNUM
+    //     - Fail: `{stack: a, b} OP_LSHIFTNUM OP_DROP OP_1`, with
+    //          - `ScriptError::INVALID_BIT_SHIFT` if a < 0
+    //          - `ScriptError::INVALID_NUMBER_RANGE_BIG_INT` if result would overflow
+    {
+        auto TestValidRange = [](const BigInt &a) {
+            auto WithB = [&](const BigInt &b) {
+                StackT stack = {a.serialize(), b.serialize()};
+                CScript script = CScript() << OP_LSHIFTNUM << OP_DROP << OP_1;
+                if (b < 0) {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::INVALID_BIT_SHIFT),
+                                    "TestValidRange passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString());
+                    return;
+                }
+                if (a == 0 || (b <= MAX_ELEM_SIZE * 8 - 1 && a.absValNumBits() + *b.getUInt() < MAX_ELEM_SIZE * 8)) {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestValidRange failed (expected to pass) for a = " << a.ToString() << ", b = " << b.ToString());
+                } else {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::INVALID_NUMBER_RANGE_BIG_INT),
+                                    "TestValidRange passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString());
+                }
+            };
+            TestRange(WithB, 1, MAX_SCRIPTNUM, true, 100);
+            TestRange(WithB, 0, MAX_SCRIPTNUM, false, 100);
+        };
+
+        TestRange(TestValidRange, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestValidRange, 0, MAX_SCRIPTNUM, false, 700);
+    }
+}
+
+// OP_RSHIFTNUM (0x8e)
+BOOST_AUTO_TEST_CASE(op_rshiftnum_tests) {
+    // Stack Depth Tests
+    {
+        TestStack(1, 1, OP_RSHIFTNUM);
+    }
+
+    // Minimally-encoded Operand Tests
+    {
+        TestMinimalEncodingBinary(OP_RSHIFTNUM, false, true, MAX_SCRIPTNUM, MAX_SCRIPTNUM);
+    }
+
+    // - Zero shift: `a >> 0 == a`
+    //   - Pass: `{stack: a} OP_DUP OP_0 OP_RSHIFTNUM OP_NUMEQUAL`
+    {
+        auto TestZeroShift = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_0 << OP_RSHIFTNUM << OP_NUMEQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestZeroShift failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestZeroShift, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestZeroShift, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Shift by 1: `a >> 1 == a / 2` for a >= 0 and `a >> 1 == a / 2 + a % 2` for a < 0
+    //   - Pass: `{stack: a} OP_DUP OP_1 OP_RSHIFTNUM OP_SWAP OP_2 OP_OVER OP_0 OP_LESSTHAN OP_IF OP_2DUP OP_DIV OP_ROT OP_ROT OP_MOD OP_ADD OP_ELSE OP_DIV OP_ENDIF OP_NUMEQUAL`
+    {
+        auto TestShiftByOne = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_1 << OP_RSHIFTNUM << OP_SWAP << OP_2 << OP_OVER << OP_0 << OP_LESSTHAN
+                                       << OP_IF << OP_2DUP << OP_DIV << OP_ROT << OP_ROT << OP_MOD << OP_ADD << OP_ELSE << OP_DIV << OP_ENDIF << OP_NUMEQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestShiftByOne failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestShiftByOne, 0, MAX_SCRIPTNUM / 2, true, 100);
+        TestRange(TestShiftByOne, 1, MAX_SCRIPTNUM / 2, false, 100);
+    }
+
+    // - Chain Shift: `(a >> m) >> n == a >> (m + n)`
+    //     - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_RSHIFTNUM OP_TOALTSTACK OP_TOALTSTACK OP_RSHIFTNUM OP_FROMALTSTACK OP_RSHIFTNUM OP_FROMALTSTACK OP_NUMEQUAL`
+    {
+        auto TestAssociativity = [](const BigInt &a) {
+            auto WithM = [&](const BigInt &m) {
+                auto WithN = [&](const BigInt &n) {
+                    StackT stack = {a.serialize(), m.serialize(), n.serialize()};
+                    CScript script = CScript() << OP_3DUP << OP_ADD << OP_RSHIFTNUM << OP_TOALTSTACK << OP_TOALTSTACK
+                                               << OP_RSHIFTNUM << OP_FROMALTSTACK << OP_RSHIFTNUM << OP_FROMALTSTACK << OP_NUMEQUAL;
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestAssociativity failed (expected to pass) for a = "
+                                        << a.ToString() << ", m = " << m.ToString() << ", n = " << n.ToString());
+                };
+                TestRange(WithN, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1 - *m.getUInt(), 700);
+            };
+            TestRange(WithM, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1, 700);
+        };
+
+        TestRange(TestAssociativity, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestAssociativity, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Range:
+    //     - Pass: `{stack: a, b} OP_RSHIFTNUM OP_DROP OP_1`, where b >= 0
+    //     - Fail: `{stack: a, b} OP_RSHIFTNUM OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`
+    {
+        auto TestValidRange = [](const BigInt &a) {
+            auto WithB = [&](const BigInt &b) {
+                StackT stack = {a.serialize(), b.serialize()};
+                CScript script = CScript() << OP_RSHIFTNUM << OP_DROP << OP_1;
+                if (b < 0) {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::INVALID_BIT_SHIFT),
+                                    "TestValidRange passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString());
+                } else {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestValidRange failed (expected to pass) for a = " << a.ToString() << ", b = " << b.ToString());
+                }
+            };
+            TestRange(WithB, 1, MAX_SCRIPTNUM, true, 100);
+            TestRange(WithB, 0, MAX_SCRIPTNUM, false, 100);
+        };
+
+        TestRange(TestValidRange, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestValidRange, 0, MAX_SCRIPTNUM, false, 700);
+    }
+}
+
+// OP_LSHIFTBIN (0x98)
+BOOST_AUTO_TEST_CASE(op_lshiftbin_tests) {
+    // Stack Depth Tests
+    {
+        TestStack(1, 1, OP_LSHIFTBIN);
+    }
+
+    // Minimally-encoded Operand Tests
+    {
+        TestMinimalEncodingBinary(OP_LSHIFTBIN, false, true, MAX_SCRIPTNUM, MAX_SCRIPTNUM, 0b01);
+    }
+
+    // - Zero shift: `a << 0 == a`
+    //   - Pass: `{stack: a} OP_DUP OP_0 OP_LSHIFTBIN OP_EQUAL`
+    {
+        auto TestZeroShift = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_0 << OP_LSHIFTBIN << OP_EQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestZeroShift failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestZeroShift, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestZeroShift, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // - Length preservation: `size(a) == size(a >> n)`
+    //     - Pass: `{stack: a, n} OP_SWAP OP_SIZE OP_SWAP OP_ROT OP_LSHIFTBIN OP_SIZE OP_NIP OP_NUMEQUAL`
+    {
+        auto TestLengthPreservation = [](const BigInt &a) {
+            auto WithN = [&](const BigInt &n) {
+                StackT stack = {a.serialize(), n.serialize()};
+                CScript script = CScript() << OP_SWAP << OP_SIZE << OP_SWAP << OP_ROT << OP_LSHIFTBIN << OP_SIZE << OP_NIP << OP_NUMEQUAL;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                "TestLengthPreservation failed (expected to pass) for a = "
+                                    << a.ToString() << ", n = " << n.ToString());
+            };
+            TestRange(WithN, 0, MAX_SCRIPTNUM, false, 700);
+        };
+
+        TestRange(TestLengthPreservation, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestLengthPreservation, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Left then right: `(a << n) >> n == a & (~0 >> n)`
+    //     - Pass: `{stack: a, n} OP_2DUP OP_DUP OP_ROT OP_SWAP OP_LSHIFTBIN OP_SWAP OP_RSHIFTBIN OP_ROT OP_ROT OP_SWAP OP_SIZE OP_0 OP_SWAP OP_NUM2BIN OP_INVERT OP_ROT OP_RSHIFTBIN OP_AND OP_EQUAL`
+    {
+        auto TestLeftThenRight = [](const BigInt &a) {
+            auto WithN = [&](const BigInt &n) {
+                StackT stack = {a.serialize(), n.serialize()};
+                CScript script = CScript() << OP_2DUP << OP_DUP << OP_ROT << OP_SWAP << OP_LSHIFTBIN << OP_SWAP
+                                           << OP_RSHIFTBIN << OP_ROT << OP_ROT << OP_SWAP << OP_SIZE << OP_0 << OP_SWAP
+                                           << OP_NUM2BIN << OP_INVERT << OP_ROT << OP_RSHIFTBIN << OP_AND << OP_EQUAL;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                "LeftThenRight failed (expected to pass) for a = "
+                                    << a.ToString() << ", n = " << n.ToString());
+            };
+            TestRange(WithN, 0, MAX_SCRIPTNUM, false, 700);
+        };
+
+        TestRange(TestLeftThenRight, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestLeftThenRight, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Chain shift: `(a << m) << n == a << (m + n)`
+    //     - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_LSHIFTBIN OP_TOALTSTACK OP_TOALTSTACK OP_LSHIFTBIN OP_FROMALTSTACK OP_LSHIFTBIN OP_FROMALTSTACK OP_EQUAL`
+    {
+        auto TestAssociativity = [](const BigInt &a) {
+            auto WithM = [&](const BigInt &m) {
+                auto WithN = [&](const BigInt &n) {
+                    StackT stack = {a.serialize(), m.serialize(), n.serialize()};
+                    CScript script = CScript() << OP_3DUP << OP_ADD << OP_LSHIFTBIN << OP_TOALTSTACK << OP_TOALTSTACK
+                                               << OP_LSHIFTBIN << OP_FROMALTSTACK << OP_LSHIFTBIN << OP_FROMALTSTACK << OP_EQUAL;
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestAssociativity failed (expected to pass) for a = "
+                                        << a.ToString() << ", m = " << m.ToString() << ", n = " << n.ToString());
+                };
+                TestRange(WithN, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1 - *m.getUInt(), 700);
+            };
+            TestRange(WithM, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1, 700);
+        };
+
+        TestRange(TestAssociativity, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestAssociativity, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Range:
+    //     - Pass: `{stack: a, b} OP_LSHIFTBIN OP_DROP OP_1`, where b >= 0
+    //     - Fail: `{stack: a, b} OP_LSHIFTBIN OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`
+    {
+        auto TestValidRange = [](const BigInt &a) {
+            auto WithB = [&](const BigInt &b) {
+                StackT stack = {a.serialize(), b.serialize()};
+                CScript script = CScript() << OP_LSHIFTBIN << OP_DROP << OP_1;
+                if (b < 0) {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::INVALID_BIT_SHIFT),
+                                    "TestValidRange passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString());
+                } else {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestValidRange failed (expected to pass) for a = " << a.ToString() << ", b = " << b.ToString());
+                }
+            };
+            TestRange(WithB, 1, MAX_SCRIPTNUM, true, 100);
+            TestRange(WithB, 0, MAX_SCRIPTNUM, false, 100);
+        };
+
+        TestRange(TestValidRange, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestValidRange, 0, MAX_SCRIPTNUM, false, 700);
+    }
+}
+
+// OP_RSHIFTBIN (0x99)
+BOOST_AUTO_TEST_CASE(op_rshiftbin_tests) {
+    // Stack Depth Tests
+    {
+        TestStack(1, 1, OP_RSHIFTBIN);
+    }
+
+    // - Zero shift: `a >> 0 == a`
+    //   - Pass: `{stack: a} OP_DUP OP_0 OP_RSHIFTBIN OP_EQUAL`
+    {
+        auto TestZeroShift = [](const BigInt &a) {
+            StackT stack = {a.serialize()};
+            CScript script = CScript() << OP_DUP << OP_0 << OP_RSHIFTBIN << OP_EQUAL;
+            CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK), "TestZeroShift failed (expected to pass)" << " for a = " << a.ToString());
+        };
+
+        TestRange(TestZeroShift, 0, MAX_SCRIPTNUM, true, 100);
+        TestRange(TestZeroShift, 1, MAX_SCRIPTNUM, false, 100);
+    }
+
+    // Minimally-encoded Operand Tests
+    {
+        TestMinimalEncodingBinary(OP_RSHIFTBIN, false, true, MAX_SCRIPTNUM, MAX_SCRIPTNUM, 0b01);
+    }
+
+    // - Length preservation: `size(a) == size(a >> n)`
+    //     - Pass: `{stack: a, n} OP_SWAP OP_SIZE OP_SWAP OP_ROT OP_RSHIFTBIN OP_SIZE OP_NIP OP_NUMEQUAL`
+    {
+        auto TestLengthPreservation = [](const BigInt &a) {
+            auto WithN = [&](const BigInt &n) {
+                StackT stack = {a.serialize(), n.serialize()};
+                CScript script = CScript() << OP_SWAP << OP_SIZE << OP_SWAP << OP_ROT << OP_RSHIFTBIN << OP_SIZE << OP_NIP << OP_NUMEQUAL;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                "TestLengthPreservation failed (expected to pass) for a = "
+                                    << a.ToString() << ", n = " << n.ToString());
+            };
+            TestRange(WithN, 0, MAX_SCRIPTNUM, false, 700);
+        };
+
+        TestRange(TestLengthPreservation, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestLengthPreservation, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Right then left: `(a >> n) << n == a & (~0 << n)`
+    //     - Pass: `{stack: a, n} OP_2DUP OP_DUP OP_ROT OP_SWAP OP_RSHIFTBIN OP_SWAP OP_LSHIFTBIN OP_ROT OP_ROT OP_SWAP OP_SIZE OP_0 OP_SWAP OP_NUM2BIN OP_INVERT OP_ROT OP_LSHIFTBIN OP_AND OP_EQUAL`
+    {
+        auto TestRightThenLeft = [](const BigInt &a) {
+            auto WithN = [&](const BigInt &n) {
+                StackT stack = {a.serialize(), n.serialize()};
+                CScript script = CScript() << OP_2DUP << OP_DUP << OP_ROT << OP_SWAP << OP_RSHIFTBIN << OP_SWAP
+                                           << OP_LSHIFTBIN << OP_ROT << OP_ROT << OP_SWAP << OP_SIZE << OP_0 << OP_SWAP
+                                           << OP_NUM2BIN << OP_INVERT << OP_ROT << OP_LSHIFTBIN << OP_AND << OP_EQUAL;
+                CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                "RightThenLeft failed (expected to pass) for a = "
+                                    << a.ToString() << ", n = " << n.ToString());
+            };
+            TestRange(WithN, 0, MAX_SCRIPTNUM, false, 700);
+        };
+
+        TestRange(TestRightThenLeft, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestRightThenLeft, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Chain shift: `(a >> m) >> n == a >> (m + n)`
+    //     - Pass: `{stack: a, m, n} OP_3DUP OP_ADD OP_RSHIFTBIN OP_TOALTSTACK OP_TOALTSTACK OP_RSHIFTBIN OP_FROMALTSTACK OP_RSHIFTBIN OP_FROMALTSTACK OP_EQUAL`
+    {
+        auto TestAssociativity = [](const BigInt &a) {
+            auto WithM = [&](const BigInt &m) {
+                auto WithN = [&](const BigInt &n) {
+                    StackT stack = {a.serialize(), m.serialize(), n.serialize()};
+                    CScript script = CScript() << OP_3DUP << OP_ADD << OP_RSHIFTBIN << OP_TOALTSTACK << OP_TOALTSTACK
+                                               << OP_RSHIFTBIN << OP_FROMALTSTACK << OP_RSHIFTBIN << OP_FROMALTSTACK << OP_EQUAL;
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestAssociativity failed (expected to pass) for a = "
+                                        << a.ToString() << ", m = " << m.ToString() << ", n = " << n.ToString());
+                };
+                TestRange(WithN, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1 - *m.getUInt(), 700);
+            };
+            TestRange(WithM, 0, MAX_ELEM_SIZE * 8 - a.absValNumBits() - 1, 700);
+        };
+
+        TestRange(TestAssociativity, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestAssociativity, 0, MAX_SCRIPTNUM, false, 700);
+    }
+
+    // - Range:
+    //     - Pass: `{stack: a, b} OP_RSHIFTBIN OP_DROP OP_1`, where b >= 0
+    //     - Fail: `{stack: a, b} OP_RSHIFTBIN OP_DROP OP_1`, where b < 0 with `ScriptError::INVALID_BIT_SHIFT`
+    {
+        auto TestValidRange = [](const BigInt &a) {
+            auto WithB = [&](const BigInt &b) {
+                StackT stack = {a.serialize(), b.serialize()};
+                CScript script = CScript() << OP_RSHIFTBIN << OP_DROP << OP_1;
+                if (b < 0) {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::INVALID_BIT_SHIFT),
+                                    "TestValidRange passed (expected to fail) for a = " << a.ToString() << ", b = " << b.ToString());
+                } else {
+                    CHECK_MESSAGE(TestScript(script, stack, ScriptError::OK),
+                                    "TestValidRange failed (expected to pass) for a = " << a.ToString() << ", b = " << b.ToString());
+                }
+            };
+            TestRange(WithB, 1, MAX_SCRIPTNUM, true, 100);
+            TestRange(WithB, 0, MAX_SCRIPTNUM, false, 100);
+        };
+
+        TestRange(TestValidRange, 1, MAX_SCRIPTNUM, true, 700);
+        TestRange(TestValidRange, 0, MAX_SCRIPTNUM, false, 700);
     }
 }
 

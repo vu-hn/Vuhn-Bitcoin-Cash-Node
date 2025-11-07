@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2024 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -79,7 +79,8 @@ static ScriptErrorDesc script_errors[] = {
     {ScriptError::DISABLED_OPCODE, "DISABLED_OPCODE"},
     {ScriptError::INVALID_STACK_OPERATION, "INVALID_STACK_OPERATION"},
     {ScriptError::INVALID_ALTSTACK_OPERATION, "INVALID_ALTSTACK_OPERATION"},
-    {ScriptError::UNBALANCED_CONDITIONAL, "UNBALANCED_CONDITIONAL"},
+    {ScriptError::UNBALANCED_CONDITIONAL,"UNBALANCED_CONDITIONAL"},
+    {ScriptError::UNBALANCED_CONTROL_FLOW, "UNBALANCED_CONTROL_FLOW"},
     {ScriptError::NEGATIVE_LOCKTIME, "NEGATIVE_LOCKTIME"},
     {ScriptError::UNSATISFIED_LOCKTIME, "UNSATISFIED_LOCKTIME"},
     {ScriptError::SIG_HASHTYPE, "SIG_HASHTYPE"},
@@ -104,6 +105,7 @@ static ScriptErrorDesc script_errors[] = {
     {ScriptError::OP_COST, "OP_COST"},
     {ScriptError::TOO_MANY_HASH_ITERS, "HASH_ITERS"},
     {ScriptError::CONDITIONAL_STACK_DEPTH, "CONDITIONAL_STACK_DEPTH"},
+    {ScriptError::CONTROL_STACK_DEPTH, "CONTROL_STACK_DEPTH"},
 };
 
 static const char *FormatScriptError(ScriptError err) {
@@ -166,7 +168,8 @@ static void DoTest(const CScript &scriptPubKey, const CScript &scriptSig,
         // anything about what happens when they are flipped. Keep them as-is.
         extra_flags &=
             ~(SCRIPT_ENABLE_SIGHASH_FORKID | SCRIPT_ENABLE_SCHNORR_MULTISIG | SCRIPT_64_BIT_INTEGERS
-              | SCRIPT_NATIVE_INTROSPECTION | SCRIPT_ENABLE_TOKENS | SCRIPT_ENABLE_P2SH_32 | SCRIPT_ENABLE_MAY2025);
+              | SCRIPT_NATIVE_INTROSPECTION | SCRIPT_ENABLE_TOKENS | SCRIPT_ENABLE_P2SH_32 | SCRIPT_ENABLE_MAY2025
+              | SCRIPT_ENABLE_MAY2026);
         uint32_t combined_flags =
             expect ? (flags & ~extra_flags) : (flags | extra_flags);
         // Weed out invalid flag combinations.
