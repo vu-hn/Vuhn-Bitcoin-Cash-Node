@@ -812,6 +812,9 @@ private:
 /// Global object to track the exact height when Upgrade 12 activated (may be needed for some consensus rules).
 extern ActivationBlockTracker g_upgrade12_block_tracker;
 
+/// Global object to track the exact height when Upgrade 2027 activated (may be needed for some consensus rules).
+extern ActivationBlockTracker g_upgrade2027_block_tracker;
+
 /// Returns the script flags which are basically nextBlockScriptFlags | STANDARD_SCRIPT_VERIFY_FLAGS | (maybe) SCRIPT_VM_LIMITS_STANDARD
 uint32_t GetMemPoolScriptFlags(const Consensus::Params &params, const CBlockIndex *pindex,
                                uint32_t *nextBlockFlags = nullptr /* out param: block flags without standard */);
