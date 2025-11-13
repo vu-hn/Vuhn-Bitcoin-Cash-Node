@@ -89,6 +89,7 @@ class BlockchainTest(BitcoinTestFramework):
             'mediantime',
             'pruned',
             'size_on_disk',
+            'upgrade_status',
             'verificationprogress',
             'warnings',
         ]
@@ -108,11 +109,13 @@ class BlockchainTest(BitcoinTestFramework):
         # check other pruning fields given that prune=1
         assert res['pruned']
         assert not res['automatic_pruning']
+        self._assert_upgrade_status(res['upgrade_status'])
 
         self.restart_node(0, ['-stopatheight=207'])
         res = self.nodes[0].getblockchaininfo()
         # should have exact keys
         assert_equal(sorted(res.keys()), keys)
+        self._assert_upgrade_status(res['upgrade_status'])
 
         self.restart_node(0, ['-stopatheight=207', '-prune=550'])
         res = self.nodes[0].getblockchaininfo()
@@ -126,6 +129,34 @@ class BlockchainTest(BitcoinTestFramework):
         assert res['automatic_pruning']
         assert_equal(res['prune_target_size'], 576716800)
         assert_greater_than(res['size_on_disk'], 0)
+        self._assert_upgrade_status(res['upgrade_status'])
+
+    def _assert_upgrade_status(self, status):
+        expect_fields = {
+            'name': str,
+            'mempool_activated': bool,
+            'mempool_activation_mtp': int,
+            'block_preactivation_height': (int, type(None)),
+            'block_preactivation_hash': (str, type(None)),
+            'block_postactivation_height': (int, type(None)),
+            'block_postactivation_hash': (str, type(None)),
+            'software_expiration_time': (int, type(None)),
+        }
+        assert_equal(sorted(status.keys()), sorted(expect_fields))
+        for field, field_type in expect_fields.items():
+            assert isinstance(status[field], field_type), f"{field} has wrong type"
+
+        def _check_block(height_key, hash_key):
+            height = status[height_key]
+            block_hash = status[hash_key]
+            if height is None:
+                assert block_hash is None
+            else:
+                assert block_hash is not None
+                assert_equal(len(block_hash), 64)
+
+        _check_block('block_preactivation_height', 'block_preactivation_hash')
+        _check_block('block_postactivation_height', 'block_postactivation_hash')
 
     def _test_getchaintxstats(self):
         self.log.info("Test getchaintxstats")
