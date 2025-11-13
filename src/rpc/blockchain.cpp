@@ -14,6 +14,7 @@
 #include <coinstats.h>
 #include <config.h>
 #include <consensus/abla.h>
+#include <consensus/activation.h>
 #include <consensus/validation.h>
 #include <core_io.h>
 #include <hash.h>
@@ -28,6 +29,7 @@
 #include <rpc/server_util.h>
 #include <rpc/util.h>
 #include <script/descriptor.h>
+#include <software_outdated.h>
 #include <streams.h>
 #include <sync.h>
 #include <txdb.h>
@@ -1535,6 +1537,16 @@ UniValue getblockchaininfo(const Config &config,
             "pruning is enabled (only present if pruning is enabled)\n"
             "  \"prune_target_size\": xxxxxx,  (numeric) the target size "
             "used by pruning (only present if automatic pruning is enabled)\n"
+            "  \"upgrade_status\": {           (json object) details about the next scheduled upgrade\n"
+            "      \"name\": \"...\",                            (string) human-readable upgrade name\n"
+            "      \"mempool_activated\": true|false,          (boolean) whether the upgrade has activated for the mempool\n"
+            "      \"mempool_activation_mtp\": n,              (numeric) mediantime for mempool upgrade activation\n"
+            "      \"block_preactivation_height\": n|null,     (numeric or null) block height immediately before activation\n"
+            "      \"block_preactivation_hash\": \"...\"|null,   (string or null) hash of the preactivation block\n"
+            "      \"block_postactivation_height\": n|null,    (numeric or null) first height enforcing the upgrade\n"
+            "      \"block_postactivation_hash\": \"...\"|null,  (string or null) hash of the postactivation block\n"
+            "      \"software_expiration_time\": n|null        (numeric or null) UTC time for when this software build expires (null = expiration is disabled)\n"
+            "    },\n"
             "  \"warnings\" : \"...\",           (string) any network and "
             "blockchain warnings.\n"
             "}\n"
@@ -1548,7 +1560,7 @@ UniValue getblockchaininfo(const Config &config,
     const CBlockIndex *tip = ::ChainActive().Tip();
     bool automatic_pruning = fPruneMode && gArgs.GetArg("-prune", 0) != 1;
     UniValue::Object obj;
-    obj.reserve(fPruneMode ? automatic_pruning ? 15 : 14 : 12);
+    obj.reserve(fPruneMode ? automatic_pruning ? 16 : 15 : 13);
 
     obj.emplace_back("chain", config.GetChainParams().NetworkIDString());
     obj.emplace_back("blocks", ::ChainActive().Height());
@@ -1577,7 +1589,63 @@ UniValue getblockchaininfo(const Config &config,
         }
     }
 
+    // "upgrade_status" sub-dictionary
+    {
+        const auto &consensus = config.GetChainParams().GetConsensus();
+        struct UpgradeInfo {
+            const char *name{};
+            ActivationBlockTracker &tracker;
+            const char *cliArg{};
+            const int64_t &cliArgDefault;
+        } const info = {
+            /* Note: Update the below variables whenever we bump the "next" upgrade to be Upgrade2027, etc */
+            .name = "Upgrade12",
+            .tracker = g_upgrade12_block_tracker,
+            .cliArg = "-upgrade12activationtime",
+            .cliArgDefault = consensus.upgrade12ActivationTime
+        };
+        const auto &isUpgradeActivatedFunc = info.tracker.GetPredicate();
+        CHECK_NONFATAL(isUpgradeActivatedFunc != nullptr);
+
+        const int64_t activation_mtp = gArgs.GetArg(info.cliArg, info.cliArgDefault);
+        const int64_t expiry_time = software_outdated::nTime;
+        const bool expiry_enabled = expiry_time > 0;
+        const bool mempool_activated = isUpgradeActivatedFunc(consensus, tip);
+
+        UniValue::Object up;
+        up.reserve(8);
+        up.emplace_back("name", info.name);
+        up.emplace_back("mempool_activated", mempool_activated);
+        up.emplace_back("mempool_activation_mtp", activation_mtp);
+
+        if (const CBlockIndex *activation_block{};
+                mempool_activated && tip && (activation_block = info.tracker.GetActivationBlock(tip, consensus))) {
+            up.emplace_back("block_preactivation_height", static_cast<int64_t>(activation_block->nHeight));
+            up.emplace_back("block_preactivation_hash", activation_block->GetBlockHash().GetHex());
+
+            const int post_height = activation_block->nHeight + 1;
+            const CBlockIndex *post_block = ::ChainActive()[post_height];
+            if (post_block) {
+                up.emplace_back("block_postactivation_height", static_cast<int64_t>(post_block->nHeight));
+                up.emplace_back("block_postactivation_hash", post_block->GetBlockHash().GetHex());
+            } else {
+                up.emplace_back("block_postactivation_height", UniValue::VNULL);
+                up.emplace_back("block_postactivation_hash", UniValue::VNULL);
+            }
+        } else {
+            up.emplace_back("block_preactivation_height", UniValue::VNULL);
+            up.emplace_back("block_preactivation_hash", UniValue::VNULL);
+            up.emplace_back("block_postactivation_height", UniValue::VNULL);
+            up.emplace_back("block_postactivation_hash", UniValue::VNULL);
+        }
+
+        up.emplace_back("software_expiration_time", expiry_enabled ? UniValue(expiry_time) : UniValue{});
+
+        obj.emplace_back("upgrade_status", std::move(up));
+    }
+
     obj.emplace_back("warnings", GetWarnings("statusbar"));
+
     return obj;
 }
 

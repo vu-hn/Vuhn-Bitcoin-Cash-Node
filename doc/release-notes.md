@@ -45,6 +45,8 @@ None
   - Support for EC Multiset Hash (ECMH) as well as Core-compatbile MuHash3072 has been added to the RPC as well.
   - This RPC can now interoperate with the `coinstatsindex`. If enabled, the index allows `gettxoutsetinfo` to query
     UTXO set statistics for any block in the block chain.
+- The `getblockchaininfo` RPC now has a new key `upgrade_status` which contains details about the next scheduled BCH
+  network upgrade and its activation. See the RPC help for `getblockchaininfo` for more details.
 
 ## Removed functionality
 
