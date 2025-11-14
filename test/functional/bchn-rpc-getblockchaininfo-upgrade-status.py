@@ -37,7 +37,7 @@ class GetBlockchainInfoUpgradeStatusTest(BitcoinTestFramework):
         # Pre-activation: far-future activation time => mempool_activated = false
         info = node.getblockchaininfo()
         us = info['upgrade_status']
-        assert us['name'].startswith(f'Upgrade12')
+        assert_equal(us['name'], "May 2026 Upgrade (regtestnet)")
         assert_equal(us['mempool_activation_mtp'], self.future_time)
         assert_equal(us['mempool_activated'], False)
         # Not yet known, but expected to always be present as `null`
