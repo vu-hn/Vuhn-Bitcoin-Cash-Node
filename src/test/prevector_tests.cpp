@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2021 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,6 +13,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+#include <span>
 #include <vector>
 
 BOOST_FIXTURE_TEST_SUITE(prevector_tests, TestingSetup)
@@ -287,6 +288,35 @@ BOOST_AUTO_TEST_CASE(PrevectorTestInt) {
                 test.resize_uninitialized(values);
             }
         }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(PrevectorTestSpan) {
+    // Just ensure prevector can be implicitly and explicitly converted to std::span and that the result is sane.
+    auto GetSizeViaImplicitSpan = [](const std::span<const uint8_t> &sp){ return sp.size(); };
+    prevector<28, uint8_t> pvec;
+    for (size_t i = 0; i < 64; ++i) {
+        pvec.push_back(InsecureRandBits(8));
+        std::span<uint8_t> span{pvec}; // ensure c'tor works
+        std::span<const uint8_t> cspan{pvec};
+        auto test = [&] {
+            BOOST_CHECK_EQUAL(span.size(), pvec.size());
+            BOOST_CHECK_EQUAL(cspan.size(), pvec.size());
+            BOOST_CHECK_EQUAL(GetSizeViaImplicitSpan(pvec), pvec.size());
+            BOOST_CHECK(span.data() == pvec.data());
+            BOOST_CHECK(cspan.data() == pvec.data());
+            auto it = cspan.rbegin();
+            auto it2 = pvec.rbegin();
+            for (size_t pos = pvec.size(); it != cspan.rend() && it2 != pvec.rend() && pos != 0; ++it, ++it2) {
+                BOOST_CHECK_EQUAL(*it, *it2);
+                BOOST_CHECK_EQUAL(*it, pvec[--pos]);
+            }
+            BOOST_CHECK(it == cspan.rend() && it2 == pvec.rend());
+        };
+        test();
+        span = pvec; // ensure copy-assign works
+        cspan = pvec;
+        test();
     }
 }
 

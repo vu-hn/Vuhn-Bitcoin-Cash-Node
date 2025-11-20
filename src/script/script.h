@@ -1062,9 +1062,7 @@ public:
  */
 using CScriptBase = prevector<28, uint8_t>;
 
-template <typename It, std::enable_if_t<   std::is_same_v<It, CScriptBase::const_iterator>
-                                        || std::is_same_v<It, const uint8_t *>, int> = 0>
-bool GetScriptOp(It &pc, It end, opcodetype &opcodeRet, std::vector<uint8_t> *pvchRet);
+bool GetScriptOp(const uint8_t *&pc, const uint8_t *end, opcodetype &opcodeRet, std::vector<uint8_t> *pvchRet);
 
 /** Serialized script, used inside transaction inputs and outputs */
 class CScript : public CScriptBase {
@@ -1082,8 +1080,6 @@ protected:
 
 public:
     CScript() {}
-    CScript(const_iterator pbegin, const_iterator pend)
-        : CScriptBase(pbegin, pend) {}
     CScript(std::vector<uint8_t>::const_iterator pbegin,
             std::vector<uint8_t>::const_iterator pend)
         : CScriptBase(pbegin, pend) {}

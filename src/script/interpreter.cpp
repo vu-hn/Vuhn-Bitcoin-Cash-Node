@@ -265,7 +265,7 @@ class EvalStack {
 public:
     explicit EvalStack(const CScript *outermostScript) {
         assert(outermostScript != nullptr);
-        pushFrame({outermostScript->data(), outermostScript->size()});
+        pushFrame(*outermostScript);
     }
 
     void pushFrame(const ByteView &script) {
