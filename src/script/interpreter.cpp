@@ -177,8 +177,7 @@ public:
  */
 struct EvalFrame {
     const size_t cumulativeCtr = 0; ///< Cumulative vfExec.size() + loopDepthCtr for all control frames BELOW this one
-    using ScriptView = std::span<const uint8_t>;
-    const ScriptView script;        ///< The script we are evaluating (as a view type)
+    const ByteView script;          ///< The script we are evaluating (as a view type)
     ConditionStack vfExec;          ///< The O(1) conditional stack for this control frame
     const uint8_t *pc;              ///< Initially equal to script.data(), but incremented as we execute the script
     const uint8_t *pbegincodehash;  ///< Initially equal to `pc`, but updated if we encounter OP_CODESEPARATOR opcodes
@@ -195,8 +194,8 @@ struct EvalFrame {
      */
     size_t loopDepthCtr = 0;
 
-    EvalFrame(size_t cumCtr, const ScriptView &scriptView)
-        : cumulativeCtr(cumCtr), script{scriptView}, pc{script.data()}, pbegincodehash{pc} {}
+    EvalFrame(size_t cumCtr, const ByteView &script_)
+        : cumulativeCtr(cumCtr), script{script_}, pc{script.data()}, pbegincodehash{pc} {}
 
     /// Returns non-nullptr if the innermost control flow structure is a loop (OP_BEGIN), nullptr otherwise.
     [[nodiscard]] const uint8_t *controlStackTop() const {
@@ -269,7 +268,7 @@ public:
         pushFrame({outermostScript->data(), outermostScript->size()});
     }
 
-    void pushFrame(const EvalFrame::ScriptView &script) {
+    void pushFrame(const ByteView &script) {
         if (script.size() > MAX_SCRIPT_SIZE) {
             // Size check consensus rule (enforced here on push for belt-and-suspenders)
             throw ScriptEvaluationError(ScriptError::SCRIPT_SIZE);
