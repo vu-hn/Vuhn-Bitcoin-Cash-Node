@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2023 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,11 +13,13 @@
 
 #include <boost/test/unit_test.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 BOOST_FIXTURE_TEST_SUITE(serialize_tests, BasicTestingSetup)
@@ -509,6 +511,79 @@ BOOST_AUTO_TEST_CASE(optional) {
     vr >> optObj;
     BOOST_CHECK(!optObj.has_value());
     BOOST_CHECK(!vr.empty()); // has bytes leftover after reading leading 0
+}
+
+BOOST_AUTO_TEST_CASE(span) {
+    // Test both our custom Span type and std::span types serialize and unserialize properly
+    constexpr size_t nBytes = 512u;
+    const std::vector<uint8_t> zeroes(nBytes);
+    std::vector<uint8_t> randomData = zeroes, tmp = zeroes;
+    BOOST_CHECK(randomData == tmp && randomData == zeroes
+                && std::all_of(randomData.begin(), randomData.end(), [](const uint8_t x){ return x == 0; }));
+    for (size_t i = 0, nb; i < nBytes; i += nb) {
+        // fill with random data
+        nb = std::min<size_t>(randomData.size() - i, 32u);
+        GetRandBytes(randomData.data() + i, nb);
+    }
+    BOOST_CHECK(randomData != tmp && randomData != zeroes && randomData.size() == tmp.size());
+
+    // Test serializing Span & std::span
+
+    // Ensure serializing a Span just writes the bytes with no leading compactsize
+    CVectorWriter(SER_DISK, PROTOCOL_VERSION, tmp, 0) << Span{randomData};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+    BOOST_CHECK(randomData != tmp);
+    // Do same for std::span
+    CVectorWriter(SER_DISK, PROTOCOL_VERSION, tmp, 0) << std::span{randomData};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+    // Repeat the above with a Span<const uint8_t> & std::span<const uint8_t>
+    CVectorWriter(SER_DISK, PROTOCOL_VERSION, tmp, 0) << Span{std::as_const(randomData)};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+    BOOST_CHECK(randomData != tmp);
+    // Do same for std::span
+    CVectorWriter(SER_DISK, PROTOCOL_VERSION, tmp, 0) << std::span{std::as_const(randomData)};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+
+
+    // Test unserializing Span & std::span
+
+    BOOST_CHECK(randomData != tmp);
+    VectorReader(SER_DISK, PROTOCOL_VERSION, randomData, 0) >> Span{tmp};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+    BOOST_CHECK(randomData != tmp);
+    VectorReader(SER_DISK, PROTOCOL_VERSION, randomData, 0) >> std::span{tmp};
+    BOOST_CHECK(randomData == tmp); // result should just be raw bytes
+    tmp = zeroes; // clear
+    BOOST_CHECK(randomData != tmp);
+
+
+    // Test unserializing into a "view" of a larger writable buffer
+
+    auto Equals = [](const std::span<const uint8_t> &a, const std::span<const uint8_t> &b) {
+        return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
+    };
+    const std::vector<uint8_t> partial(randomData.begin(), randomData.begin() + randomData.size() / 2);
+    BOOST_CHECK(Equals(std::span{partial}, std::span{randomData}.first(partial.size())));
+    BOOST_CHECK(!Equals(std::span{partial}, std::span{tmp}.first(partial.size())));
+    // Unserialize a Span equal to the size of "partial", but from 'randomData' as the source
+    VectorReader(SER_DISK, PROTOCOL_VERSION, randomData, 0) >> Span{tmp}.first(partial.size()); // Span
+    BOOST_CHECK(partial != tmp);
+    BOOST_CHECK(randomData != tmp);
+    BOOST_CHECK(Equals(std::span{partial}, std::span{tmp}.first(partial.size())));
+    tmp = zeroes;
+    BOOST_CHECK(!Equals(std::span{partial}, std::span{tmp}.first(partial.size())));
+    // Do same for std::span
+    VectorReader(SER_DISK, PROTOCOL_VERSION, randomData, 0) >> std::span{tmp}.first(partial.size()); // std::span
+    BOOST_CHECK(partial != tmp);
+    BOOST_CHECK(randomData != tmp);
+    BOOST_CHECK(Equals(std::span{partial}, std::span{tmp}.first(partial.size())));
+    tmp = zeroes;
+    BOOST_CHECK(!Equals(std::span{partial}, std::span{tmp}.first(partial.size())));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
