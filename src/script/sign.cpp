@@ -12,8 +12,6 @@
 #include <script/standard.h>
 #include <uint256.h>
 
-using valtype = std::vector<uint8_t>;
-
 TransactionSignatureCreator::TransactionSignatureCreator(const ScriptExecutionContext &contextIn,
                                                          SigHashType sigHashTypeIn)
     : context(contextIn), sigHashType(sigHashTypeIn), checker(contextIn)

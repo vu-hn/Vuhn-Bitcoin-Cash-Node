@@ -8,12 +8,11 @@
 
 #include <crypto/sha256.h>
 #include <pubkey.h>
+#include <script/container_types.h>
 #include <script/script.h>
 #include <util/overloaded.h>
 #include <util/strencodings.h>
 #include <util/system.h>
-
-using valtype = std::vector<uint8_t>;
 
 uint32_t nMaxDatacarrierBytes = MAX_OP_RETURN_RELAY;
 

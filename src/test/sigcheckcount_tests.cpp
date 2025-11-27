@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 The Bitcoin developers
+// Copyright (c) 2019-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,9 +16,6 @@
 #ifndef BOOST_TEST_CONTEXT
 #define BOOST_TEST_CONTEXT(x)
 #endif
-
-typedef std::vector<uint8_t> valtype;
-typedef std::vector<valtype> stacktype;
 
 BOOST_FIXTURE_TEST_SUITE(sigcheckcount_tests, BasicTestingSetup)
 
@@ -112,14 +109,14 @@ static const std::vector<uint32_t> schnorrmultisigflags{
     STANDARD_SCRIPT_VERIFY_FLAGS | SCRIPT_ENABLE_SCHNORR_MULTISIG,
 };
 
-static void CheckEvalScript(const stacktype &original_stack,
+static void CheckEvalScript(const StackT &original_stack,
                             const CScript &script,
-                            const stacktype &expected_stack,
+                            const StackT &expected_stack,
                             const int expected_sigchecks,
                             std::vector<uint32_t> flagset = allflags) {
     for (uint32_t flags : flagset) {
         ScriptError err = ScriptError::UNKNOWN;
-        stacktype stack{original_stack};
+        StackT stack{original_stack};
         ScriptExecutionMetrics metrics;
 
         bool r = EvalScript(stack, script, flags, dummysigchecker, metrics, &err);
@@ -153,7 +150,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
             }
             script << ScriptInt::fromIntUnchecked(n) << OP_CHECKMULTISIG;
 
-            stacktype sigs;
+            StackT sigs;
 
             // The all-null-signatures case with null dummy element counts as 0
             // sigchecks, since all signatures are null.
@@ -228,7 +225,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
     // CHECKMULTISIG with schnorr cannot return false, it just fails instead
     // (hence, the sigchecks count is unimportant)
     {
-        stacktype stack{{1}, txsigschnorr};
+        StackT stack{{1}, txsigschnorr};
         BOOST_CHECK(!EvalScript(stack,
             CScript() << ScriptInt::fromIntUnchecked(1)
                       << badpub
@@ -237,7 +234,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
             SCRIPT_VERIFY_NONE, dummysigchecker));
     }
     {
-        stacktype stack{{1}, txsigschnorr};
+        StackT stack{{1}, txsigschnorr};
         BOOST_CHECK(!EvalScript(stack,
             CScript() << ScriptInt::fromIntUnchecked(1)
                       << badpub
@@ -248,7 +245,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
 
     // EvalScript cumulatively increases the sigchecks count.
     {
-        stacktype stack{txsigschnorr};
+        StackT stack{txsigschnorr};
         TestableScriptExecutionMetrics metrics(12345);
         bool r = EvalScript(stack, CScript() << pub << OP_CHECKSIG, SCRIPT_VERIFY_NONE, dummysigchecker, metrics);
         BOOST_CHECK(r);
@@ -277,7 +274,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
     // OP_ROLL grinding, see
     // https://bitslog.com/2017/04/17/new-quadratic-delays-in-bitcoin-scripts/
     {
-        stacktype bigstack;
+        StackT bigstack;
         bigstack.assign(999, {1});
         CScript script;
         for (int i = 0; i < 200; ++i) {
@@ -308,7 +305,7 @@ BOOST_AUTO_TEST_CASE(test_evalscript) {
     // https://gist.github.com/markblundeberg/c2c88d25d5f34213830e48d459cbfb44
     // (this is a simplified form)
     {
-        stacktype stack;
+        StackT stack;
         stack.assign(94, txsigecdsa);
         CScript script;
         for (int i = 0; i < 94; ++i) {
