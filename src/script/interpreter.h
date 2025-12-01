@@ -55,16 +55,15 @@ struct SignatureHashResult {
 
 /// Returns the transaction input hash digest for signature creation and/or verification
 /// @throw std::ios_base::failure or SignatureHashMissingUtxoDataError (in tests only)
-SignatureHashResult SignatureHash(const CScript &scriptCode, const ScriptExecutionContext &context, SigHashType sigHashType,
+SignatureHashResult SignatureHash(const ByteView &scriptCode, const ScriptExecutionContext &context, SigHashType sigHashType,
                                   const PrecomputedTransactionData *cache /* null ok */, uint32_t flags);
 
 class BaseSignatureChecker {
 public:
-    virtual bool VerifySignature(const std::vector<uint8_t> &vchSig, const CPubKey &vchPubKey,
-                                 const uint256 &sighash) const;
+    virtual bool VerifySignature(const ByteView &vchSig, const CPubKey &vchPubKey, const uint256 &sighash) const;
 
-    virtual bool CheckSig(const std::vector<uint8_t> &vchSigIn, const std::vector<uint8_t> &vchPubKey,
-                          const CScript &scriptCode, uint32_t flags, size_t *pnBytesHashed) const {
+    virtual bool CheckSig(const ByteView &vchSigIn, const std::vector<uint8_t> &vchPubKey,
+                          const ByteView &scriptCode, uint32_t flags, size_t *pnBytesHashed) const {
         return false;
     }
 
@@ -104,8 +103,8 @@ public:
         : context(contextIn), txdata(&txdataIn) {}
 
     // The overridden functions are now final.
-    bool CheckSig(const std::vector<uint8_t> &vchSigIn, const std::vector<uint8_t> &vchPubKey,
-                  const CScript &scriptCode, uint32_t flags, size_t *pnBytesHashed) const final override;
+    bool CheckSig(const ByteView &vchSigIn, const std::vector<uint8_t> &vchPubKey,
+                  const ByteView &scriptCode, uint32_t flags, size_t *pnBytesHashed) const final override;
     bool CheckLockTime(const CScriptNum &nLockTime) const final override;
     bool CheckSequence(const CScriptNum &nSequence) const final override;
     const ScriptExecutionContext *GetContext() const final override { return &context; }
@@ -138,7 +137,13 @@ bool VerifyScript(const CScript &scriptSig, const CScript &scriptPubKey, uint32_
     return VerifyScript(scriptSig, scriptPubKey, flags, checker, dummymetrics, serror);
 }
 
-int FindAndDelete(CScript &script, const CScript &b);
+struct FindAndDeleteResult {
+    size_t nFound = 0;
+    CScript replacementScript; // this should only be used if nFound > 0
+};
+
+[[nodiscard]]
+FindAndDeleteResult FindAndDelete(const ByteView &script, const CScript &b);
 
 /** Used internally by interpreter.cpp but also exported here for use by tests. */
 bool CastToBool(const StackT::value_type &vch);

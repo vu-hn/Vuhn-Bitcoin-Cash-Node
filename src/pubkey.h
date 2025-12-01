@@ -156,14 +156,14 @@ public:
      * If this public key is not fully valid, the return value will be false.
      */
     bool VerifyECDSA(const uint256 &hash,
-                     const std::vector<uint8_t> &vchSig) const;
+                     const std::span<const uint8_t> &vchSig) const;
 
     /**
      * Verify a Schnorr signature (=64 bytes).
      * If this public key is not fully valid, the return value will be false.
      */
     bool VerifySchnorr(const uint256 &hash,
-                       const std::vector<uint8_t> &vchSig) const;
+                       const std::span<const uint8_t> &vchSig) const;
 
     /**
      * Check whether a DER-serialized ECDSA signature is normalized (lower-S).
@@ -172,7 +172,7 @@ public:
 
     //! Recover a public key from a compact ECDSA signature.
     bool RecoverCompact(const uint256 &hash,
-                        const std::vector<uint8_t> &vchSig);
+                        const std::span<const uint8_t> &vchSig);
 
     //! Turn this public key into an uncompressed public key.
     bool Decompress();

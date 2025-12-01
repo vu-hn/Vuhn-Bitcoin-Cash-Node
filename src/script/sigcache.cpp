@@ -39,17 +39,17 @@ class CSignatureCache {
     }
 
 public:
-    CSignatureCache() { GetRandBytes(nonce.begin(), 32); }
+    CSignatureCache() { GetRandBytes(nonce.data(), 32); }
 
-    void ComputeEntry(uint256 &entry, const uint256 &hash,
-                      const std::vector<uint8_t> &vchSig,
-                      const CPubKey &pubkey) {
+    uint256 ComputeEntry(const uint256 &hash, const ByteView &vchSig, const CPubKey &pubkey) const {
+        uint256 ret(uint256::Uninitialized);
         CSHA256()
-            .Write(nonce.begin(), 32)
-            .Write(hash.begin(), 32)
+            .Write(nonce.data(), 32)
+            .Write(hash.data(), 32)
             .Write(&pubkey[0], pubkey.size())
-            .Write(&vchSig[0], vchSig.size())
-            .Finalize(entry.begin());
+            .Write(vchSig.data(), vchSig.size())
+            .Finalize(ret.data());
+        return ret;
     }
 
     bool Get(const uint256 &entry, const bool erase) {
@@ -58,7 +58,7 @@ public:
         return setValid.contains(entry, erase);
     }
 
-    void Set(uint256 &entry) {
+    void Set(const uint256 &entry) {
         assert(ready);
         std::unique_lock lock(cs_sigcache);
         setValid.insert(entry);
@@ -94,10 +94,8 @@ void InitSignatureCache() {
 }
 
 template <typename F>
-bool RunMemoizedCheck(const std::vector<uint8_t> &vchSig, const CPubKey &pubkey,
-                      const uint256 &sighash, bool storeOrErase, const F &fun) {
-    uint256 entry;
-    signatureCache.ComputeEntry(entry, sighash, vchSig, pubkey);
+bool RunMemoizedCheck(const ByteView &vchSig, const CPubKey &pubkey, const uint256 &sighash, bool storeOrErase, const F &fun) {
+    const uint256 entry = signatureCache.ComputeEntry(sighash, vchSig, pubkey);
     if (signatureCache.Get(entry, !storeOrErase)) {
         return true;
     }
@@ -110,18 +108,12 @@ bool RunMemoizedCheck(const std::vector<uint8_t> &vchSig, const CPubKey &pubkey,
     return true;
 }
 
-bool CachingTransactionSignatureChecker::IsCached(
-    const std::vector<uint8_t> &vchSig, const CPubKey &pubkey,
-    const uint256 &sighash) const {
-    return RunMemoizedCheck(vchSig, pubkey, sighash, true,
-                            [] { return false; });
+bool CachingTransactionSignatureChecker::IsCached(const ByteView &vchSig, const CPubKey &pubkey, const uint256 &sighash) const {
+    return RunMemoizedCheck(vchSig, pubkey, sighash, true, [] { return false; });
 }
 
-bool CachingTransactionSignatureChecker::VerifySignature(
-    const std::vector<uint8_t> &vchSig, const CPubKey &pubkey,
-    const uint256 &sighash) const {
+bool CachingTransactionSignatureChecker::VerifySignature(const ByteView &vchSig, const CPubKey &pubkey, const uint256 &sighash) const {
     return RunMemoizedCheck(vchSig, pubkey, sighash, store, [&] {
-        return TransactionSignatureChecker::VerifySignature(vchSig, pubkey,
-                                                            sighash);
+        return TransactionSignatureChecker::VerifySignature(vchSig, pubkey, sighash);
     });
 }

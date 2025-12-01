@@ -3081,6 +3081,12 @@ static CScript ScriptFromHex(const char *hex) {
     return CScript(data.begin(), data.end());
 }
 
+static int FindAndDeleteInPlace(CScript &script, const CScript &b) {
+    auto res = FindAndDelete(script, b);
+    if (res.nFound) script = std::move(res.replacementScript);
+    return res.nFound;
+}
+
 BOOST_AUTO_TEST_CASE(script_FindAndDelete) {
     // Exercise the FindAndDelete functionality
     CScript s;
@@ -3091,45 +3097,45 @@ BOOST_AUTO_TEST_CASE(script_FindAndDelete) {
     // delete nothing should be a no-op
     d = CScript();
     expect = s;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 0);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 0);
     BOOST_CHECK(s == expect);
 
     s = CScript() << OP_1 << OP_2 << OP_3;
     d = CScript() << OP_2;
     expect = CScript() << OP_1 << OP_3;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     s = CScript() << OP_3 << OP_1 << OP_3 << OP_3 << OP_4 << OP_3;
     d = CScript() << OP_3;
     expect = CScript() << OP_1 << OP_4;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 4);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 4);
     BOOST_CHECK(s == expect);
 
     // PUSH 0x02ff03 onto stack
     s = ScriptFromHex("0302ff03");
     d = ScriptFromHex("0302ff03");
     expect = CScript();
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     // PUSH 0x2ff03 PUSH 0x2ff03
     s = ScriptFromHex("0302ff030302ff03");
     d = ScriptFromHex("0302ff03");
     expect = CScript();
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 2);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 2);
     BOOST_CHECK(s == expect);
 
     s = ScriptFromHex("0302ff030302ff03");
     d = ScriptFromHex("02");
     expect = s; // FindAndDelete matches entire opcodes
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 0);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 0);
     BOOST_CHECK(s == expect);
 
     s = ScriptFromHex("0302ff030302ff03");
     d = ScriptFromHex("ff");
     expect = s;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 0);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 0);
     BOOST_CHECK(s == expect);
 
     // This is an odd edge case: strip of the push-three-bytes prefix, leaving
@@ -3137,7 +3143,7 @@ BOOST_AUTO_TEST_CASE(script_FindAndDelete) {
     s = ScriptFromHex("0302ff030302ff03");
     d = ScriptFromHex("03");
     expect = CScript() << ParseHex("ff03") << ParseHex("ff03");
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 2);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 2);
     BOOST_CHECK(s == expect);
 
     // Byte sequence that spans multiple opcodes:
@@ -3146,40 +3152,40 @@ BOOST_AUTO_TEST_CASE(script_FindAndDelete) {
     d = ScriptFromHex("feed51");
     expect = s;
     // doesn't match 'inside' opcodes
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 0);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 0);
     BOOST_CHECK(s == expect);
 
     // PUSH(0xfeed) OP_1 OP_VERIFY
     s = ScriptFromHex("02feed5169");
     d = ScriptFromHex("02feed51");
     expect = ScriptFromHex("69");
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     s = ScriptFromHex("516902feed5169");
     d = ScriptFromHex("feed51");
     expect = s;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 0);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 0);
     BOOST_CHECK(s == expect);
 
     s = ScriptFromHex("516902feed5169");
     d = ScriptFromHex("02feed51");
     expect = ScriptFromHex("516969");
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     s = CScript() << OP_0 << OP_0 << OP_1 << OP_1;
     d = CScript() << OP_0 << OP_1;
     // FindAndDelete is single-pass
     expect = CScript() << OP_0 << OP_1;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     s = CScript() << OP_0 << OP_0 << OP_1 << OP_0 << OP_1 << OP_1;
     d = CScript() << OP_0 << OP_1;
     // FindAndDelete is single-pass
     expect = CScript() << OP_0 << OP_1;
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 2);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 2);
     BOOST_CHECK(s == expect);
 
     // Another weird edge case:
@@ -3188,13 +3194,13 @@ BOOST_AUTO_TEST_CASE(script_FindAndDelete) {
     // ... can remove the invalid push
     d = ScriptFromHex("03feed");
     expect = ScriptFromHex("00");
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 
     s = ScriptFromHex("0003feed");
     d = ScriptFromHex("00");
     expect = ScriptFromHex("03feed");
-    BOOST_CHECK_EQUAL(FindAndDelete(s, d), 1);
+    BOOST_CHECK_EQUAL(FindAndDeleteInPlace(s, d), 1);
     BOOST_CHECK(s == expect);
 }
 

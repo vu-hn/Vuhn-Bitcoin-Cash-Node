@@ -98,8 +98,8 @@ static void VerifyBlockScripts(bool reallyCheckSigs,
     }
 
     struct FakeSignaureChecker final : ContextOptSignatureChecker {
-        bool VerifySignature(const std::vector<uint8_t> &, const CPubKey &, const uint256 &) const override { return true; }
-        bool CheckSig(const std::vector<uint8_t> &, const std::vector<uint8_t> &, const CScript &, uint32_t,
+        bool VerifySignature(const ByteView &, const CPubKey &, const uint256 &) const override { return true; }
+        bool CheckSig(const ByteView &, const std::vector<uint8_t> &, const ByteView &, uint32_t,
                       size_t *) const override { return true; }
         bool CheckLockTime(const CScriptNum &) const override { return true; }
         bool CheckSequence(const CScriptNum &) const override { return true; }
