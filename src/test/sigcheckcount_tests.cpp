@@ -59,7 +59,7 @@ static class : public BaseSignatureChecker {
      * All null sigs verify false, and all checks using the magic 'bad pubkey'
      * value verify false as well. Otherwise, checks verify as true.
      */
-    bool VerifySignature(const std::vector<uint8_t> &vchSig,
+    bool VerifySignature(const ByteView &vchSig,
                          const CPubKey &vchPubKey,
                          const uint256 &sighash) const final {
         if (vchPubKey == CPubKey(badpub)) {
@@ -68,9 +68,9 @@ static class : public BaseSignatureChecker {
         return !vchSig.empty();
     }
 
-    bool CheckSig(const std::vector<uint8_t> &vchSigIn,
+    bool CheckSig(const ByteView &vchSigIn,
                   const std::vector<uint8_t> &vchPubKey,
-                  const CScript &scriptCode, uint32_t flags, size_t *) const final {
+                  const ByteView &scriptCode, uint32_t flags, size_t *) const final {
         if (vchPubKey == badpub) {
             return false;
         }

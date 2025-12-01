@@ -36,7 +36,8 @@ static uint256 SignatureHashOld(CScript scriptCode, const CTransaction &txTo,
 
     // In case concatenating two scripts ends up with two codeseparators, or an
     // extra one at the end, this prevents all those possible incompatibilities.
-    FindAndDelete(scriptCode, CScript(OP_CODESEPARATOR));
+    auto res = FindAndDelete(scriptCode, CScript(OP_CODESEPARATOR));
+    if (res.nFound) scriptCode = std::move(res.replacementScript);
 
     // Blank out other inputs' signatures
     for (auto &in : txTmp.vin) {

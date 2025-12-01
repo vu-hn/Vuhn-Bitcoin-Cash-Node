@@ -29,17 +29,17 @@ public:
     {
     }
 
-    bool CheckSig(const std::vector<uint8_t> &vchSigIn, const std::vector<uint8_t> &vchPubKey, const CScript &scriptCode,
+    bool CheckSig(const ByteView &vchSigIn, const std::vector<uint8_t> &vchPubKey, const ByteView &scriptCode,
                   uint32_t flags, size_t *pbytesHashed) const override {
         if (pbytesHashed) *pbytesHashed = 0;
         CPubKey pubkey(vchPubKey);
         if (!pubkey.IsValid())
             return false;
 
-        std::vector<uint8_t> vchSig(vchSigIn);
+        ByteView vchSig(vchSigIn);
         if (vchSig.empty())
             return false;
-        vchSig.pop_back(); // drop the hashtype byte tacked on to the end of the signature
+        vchSig = vchSig.first(vchSig.size() - 1); // drop the hashtype byte tacked on to the end of the signature
 
         CHashWriter ss(SER_GETHASH, 0);
         ss << m_spender.txVersion << m_spender.hashPrevOutputs << m_spender.hashSequence;
@@ -55,7 +55,8 @@ public:
             // may throw in tests that intentionally sabotage the tokenData to be inconsistent.
             ss << token::PREFIX_BYTE << *m_txout.tokenDataPtr;
         }
-        ss << static_cast<const CScriptBase &>(scriptCode);
+        WriteCompactSize(ss, scriptCode.size());
+        ss << scriptCode;
         ss << m_txout.nValue << m_spender.outSequence << m_spender.hashOutputs;
         ss << m_spender.lockTime << (int32_t) m_spender.pushData.front().back();
         const uint256 sighash = ss.GetHash();

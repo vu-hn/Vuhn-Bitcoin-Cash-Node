@@ -51,42 +51,80 @@ static inline void popstack(std::vector<valtype> &stack) {
     stack.pop_back();
 }
 
-int FindAndDelete(CScript &script, const CScript &b) {
-    int nFound = 0;
+FindAndDeleteResult FindAndDelete(const ByteView &script, const CScript &b) {
+    FindAndDeleteResult res;
     if (b.empty()) {
-        return nFound;
+        return res;
     }
 
-    CScript result;
-    CScript::const_iterator pc = script.begin(), pc2 = script.begin(),
-                            end = script.end();
+    CScript &result = res.replacementScript;
+    const uint8_t *pc = script.data(), *pc2 = script.data(), * const end = script.data() + script.size();
     opcodetype opcode;
     do {
         result.insert(result.end(), pc2, pc);
-        while (static_cast<size_t>(end - pc) >= b.size() &&
-               std::equal(b.begin(), b.end(), pc)) {
+        while (static_cast<size_t>(end - pc) >= b.size() && std::equal(b.begin(), b.end(), pc)) {
             pc = pc + b.size();
-            ++nFound;
+            ++res.nFound;
         }
         pc2 = pc;
-    } while (script.GetOp(pc, opcode));
+    } while (GetScriptOp(pc, end, opcode, nullptr));
 
-    if (nFound > 0) {
+    if (res.nFound > 0u) {
         result.insert(result.end(), pc2, end);
-        script = std::move(result);
+    } else {
+        result.clear();
     }
 
-    return nFound;
+    return res;
 }
 
-static void CleanupScriptCode(CScript &scriptCode,
-                              const std::vector<uint8_t> &vchSig,
-                              uint32_t flags) {
-    // Drop the signature in scripts when SIGHASH_FORKID is not used.
-    SigHashType sigHashType = GetHashType(vchSig);
-    if (!(flags & SCRIPT_ENABLE_SIGHASH_FORKID) || !sigHashType.hasFork()) {
-        FindAndDelete(scriptCode, CScript(vchSig));
+struct CleanupScriptCodeResult {
+    std::optional<CScript> optScriptCode;
+    ByteView scriptCode; ///< points to either this->optScriptCode or an external buffer
+
+    CleanupScriptCodeResult(const ByteView &externalBuffer) : scriptCode{externalBuffer} {}
+
+    CleanupScriptCodeResult(FindAndDeleteResult &&r, CleanupScriptCodeResult &&res) {
+        if (r.nFound) {
+            scriptCode = optScriptCode.emplace(std::move(r.replacementScript));
+        } else {
+            *this = std::move(res);
+        }
     }
+
+    CleanupScriptCodeResult(const CleanupScriptCodeResult &o) { *this = o; }
+    CleanupScriptCodeResult(CleanupScriptCodeResult &&o) { *this = std::move(o); }
+
+    CleanupScriptCodeResult &operator=(const CleanupScriptCodeResult &o) {
+        if (this != &o) {
+            optScriptCode = o.optScriptCode;
+            setScriptCode(o.scriptCode);
+        }
+        return *this;
+    }
+    CleanupScriptCodeResult &operator=(CleanupScriptCodeResult &&o) {
+        if (this != &o) {
+            optScriptCode = std::move(o.optScriptCode);
+            setScriptCode(o.scriptCode);
+        }
+        return *this;
+    }
+private:
+    void setScriptCode(const ByteView &externalBuffer) {
+        if (optScriptCode) scriptCode = *optScriptCode;
+        else scriptCode = externalBuffer;
+    }
+};
+
+[[nodiscard]]
+static CleanupScriptCodeResult CleanupScriptCode(CleanupScriptCodeResult &&res,
+                                                 const std::vector<uint8_t> &vchSig,
+                                                 uint32_t flags) {
+    // Drop the signature in scripts when SIGHASH_FORKID is not used.
+    if (!(flags & SCRIPT_ENABLE_SIGHASH_FORKID) || !GetHashType(vchSig).hasFork()) {
+        return {FindAndDelete(res.scriptCode, CScript(vchSig)), std::move(res)};
+    }
+    return std::move(res);
 }
 
 static bool IsOpcodeDisabled(opcodetype opcode, uint32_t flags) {
@@ -1388,13 +1426,13 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &initialScript, u
                             if (vchSig.size()) {
                                 // Subset of script starting at the most recent
                                 // codeseparator
-                                CScript scriptCode(pbegincodehash, pend);
+                                const ByteView scriptCode(pbegincodehash, pend);
 
                                 // Remove signature for pre-fork scripts
-                                CleanupScriptCode(scriptCode, vchSig, flags);
+                                const auto cleanedUp = CleanupScriptCode(scriptCode, vchSig, flags);
 
                                 size_t bytesHashed{};
-                                fSuccess = checker.CheckSig(vchSig, vchPubKey, scriptCode, flags, &bytesHashed);
+                                fSuccess = checker.CheckSig(vchSig, vchPubKey, cleanedUp.scriptCode, flags, &bytesHashed);
                                 metrics.TallySigChecks(1);
                                 if (bytesHashed) {
                                     metrics.TallyHashOp(bytesHashed, true);
@@ -1508,10 +1546,6 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &initialScript, u
                                 return set_error(serror, ScriptError::INVALID_STACK_OPERATION);
                             }
 
-                            // Subset of script starting at the most recent
-                            // codeseparator
-                            CScript scriptCode(pbegincodehash, pend);
-
                             // Assuming success is usually a bad idea, but the
                             // schnorr path can only succeed.
                             bool fSuccess = true;
@@ -1538,6 +1572,10 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &initialScript, u
                                 if (countBits(checkBits) != uint32_t(nSigsCount)) {
                                     return set_error(serror, ScriptError::INVALID_BIT_COUNT);
                                 }
+
+                                // Subset of script starting at the most recent
+                                // codeseparator
+                                const ByteView scriptCode(pbegincodehash, pend);
 
                                 const size_t idxBottomKey = idxTopKey + nKeysCount - 1;
                                 const size_t idxBottomSig = idxTopSig + nSigsCount - 1;
@@ -1600,10 +1638,14 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &initialScript, u
                             } else {
                                 // LEGACY MULTISIG (ECDSA / NULL)
 
+                                // Subset of script starting at the most recent
+                                // codeseparator
+                                CleanupScriptCodeResult cleanedUp({pbegincodehash, pend});
+
                                 // Remove signature for pre-fork scripts
                                 for (int k = 0; k < nSigsCount; k++) {
                                     valtype const &vchSig = stacktop(-idxTopSig - k);
-                                    CleanupScriptCode(scriptCode, vchSig, flags);
+                                    cleanedUp = CleanupScriptCode(std::move(cleanedUp), vchSig, flags);
                                 }
 
                                 int nSigsRemaining = nSigsCount;
@@ -1629,7 +1671,7 @@ bool EvalScriptImpl(std::vector<valtype> &stack, const CScript &initialScript, u
 
                                     // Check signature
                                     size_t bytesHashed{};
-                                    bool fOk = checker.CheckSig(vchSig, vchPubKey, scriptCode, flags, &bytesHashed);
+                                    bool fOk = checker.CheckSig(vchSig, vchPubKey, cleanedUp.scriptCode, flags, &bytesHashed);
                                     // Account for hash ops (may be 0 on nullsig, in which case we hashed nothing)
                                     if (bytesHashed > 0u) {
                                         metrics.TallyHashOp(bytesHashed, true);
@@ -2277,37 +2319,36 @@ class CTransactionViewSignatureSerializer {
     //! reference to the spending transaction (the one being serialized)
     const CTransactionView txTo;
     //! output script being consumed
-    const CScript &scriptCode;
+    const ByteView scriptCode;
     //! input index of txTo being signed
     const unsigned int nIn;
     //! container for hashtype flags
     const SigHashType sigHashType;
 
 public:
-    CTransactionViewSignatureSerializer(CTransactionView txToIn, const CScript &scriptCodeIn, unsigned nInIn,
+    CTransactionViewSignatureSerializer(CTransactionView txToIn, const ByteView &scriptCodeIn, unsigned nInIn,
                                         SigHashType sigHashTypeIn)
         : txTo(txToIn), scriptCode(scriptCodeIn), nIn(nInIn), sigHashType(sigHashTypeIn) {}
 
     /** Serialize the passed scriptCode, skipping OP_CODESEPARATORs */
     template <typename S> void SerializeScriptCode(S &s) const {
-        CScript::const_iterator it = scriptCode.begin();
-        CScript::const_iterator itBegin = it;
+        const uint8_t *it = scriptCode.data(), *itBegin = it, * const end = scriptCode.data() + scriptCode.size();
         opcodetype opcode;
         unsigned int nCodeSeparators = 0;
-        while (scriptCode.GetOp(it, opcode)) {
+        while (GetScriptOp(it, end, opcode, nullptr)) {
             if (opcode == OP_CODESEPARATOR) {
-                nCodeSeparators++;
+                ++nCodeSeparators;
             }
         }
         ::WriteCompactSize(s, scriptCode.size() - nCodeSeparators);
         it = itBegin;
-        while (scriptCode.GetOp(it, opcode)) {
+        while (GetScriptOp(it, end, opcode, nullptr)) {
             if (opcode == OP_CODESEPARATOR) {
                 s.write((char *)&itBegin[0], it - itBegin - 1);
                 itBegin = it;
             }
         }
-        if (itBegin != scriptCode.end()) {
+        if (itBegin != end) {
             s.write((char *)&itBegin[0], it - itBegin);
         }
     }
@@ -2427,7 +2468,7 @@ void PrecomputedTransactionData::PopulateFromContext(const ScriptExecutionContex
     populated = true;
 }
 
-SignatureHashResult SignatureHash(const CScript &scriptCode, const ScriptExecutionContext &context,
+SignatureHashResult SignatureHash(const ByteView &scriptCode, const ScriptExecutionContext &context,
                                   SigHashType sigHashType, const PrecomputedTransactionData *cache, uint32_t flags) {
     const unsigned nIn = context.inputIndex();
     const CTransactionView &txTo = context.tx();
@@ -2495,6 +2536,7 @@ SignatureHashResult SignatureHash(const CScript &scriptCode, const ScriptExecuti
             // may throw in tests that intentionally sabotage the tokenData to be inconsistent.
             ss << token::PREFIX_BYTE << *prevTxOut.tokenDataPtr;
         }
+        WriteCompactSize(ss, scriptCode.size());
         ss << scriptCode;
         ss << prevTxOut.nValue;
         ss << txTo.vin()[nIn].nSequence;
@@ -2525,7 +2567,7 @@ SignatureHashResult SignatureHash(const CScript &scriptCode, const ScriptExecuti
     return {ss.GetHash(), ss.GetNumBytesWritten()};
 }
 
-bool BaseSignatureChecker::VerifySignature(const std::vector<uint8_t> &vchSig,
+bool BaseSignatureChecker::VerifySignature(const ByteView &vchSig,
                                            const CPubKey &pubkey,
                                            const uint256 &sighash) const {
     if (vchSig.size() == 64) {
@@ -2537,8 +2579,8 @@ bool BaseSignatureChecker::VerifySignature(const std::vector<uint8_t> &vchSig,
 
 ContextOptSignatureChecker::~ContextOptSignatureChecker() {}
 
-bool TransactionSignatureChecker::CheckSig(const std::vector<uint8_t> &vchSigIn, const std::vector<uint8_t> &vchPubKey,
-                                           const CScript &scriptCode, uint32_t flags, size_t *pnBytesHashed) const {
+bool TransactionSignatureChecker::CheckSig(const ByteView &vchSigIn, const std::vector<uint8_t> &vchPubKey,
+                                           const ByteView &scriptCode, uint32_t flags, size_t *pnBytesHashed) const {
     if (pnBytesHashed) *pnBytesHashed = 0u;
     CPubKey const pubkey(vchPubKey);
     if (!pubkey.IsValid()) {
@@ -2546,12 +2588,12 @@ bool TransactionSignatureChecker::CheckSig(const std::vector<uint8_t> &vchSigIn,
     }
 
     // Hash type is one byte tacked on to the end of the signature
-    std::vector<uint8_t> vchSig(vchSigIn);
+    ByteView vchSig(vchSigIn);
     if (vchSig.empty()) {
         return false;
     }
     SigHashType const sigHashType = GetHashType(vchSig);
-    vchSig.pop_back();
+    vchSig = vchSig.first(vchSig.size() - 1u); // pop_back()
 
     const auto & [sighash, bytesHashed] = SignatureHash(scriptCode, context, sigHashType, this->txdata, flags);
     if (pnBytesHashed) *pnBytesHashed = bytesHashed;

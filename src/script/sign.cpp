@@ -209,21 +209,22 @@ public:
     SignatureExtractorChecker(SignatureData &sigdata_,
                               BaseSignatureChecker &checker_)
         : sigdata(sigdata_), checker(checker_) {}
-    bool CheckSig(const std::vector<uint8_t> &scriptSig,
+    bool CheckSig(const ByteView &scriptSig,
                   const std::vector<uint8_t> &vchPubKey,
-                  const CScript &scriptCode, uint32_t flags, size_t *pBytesHashed) const override;
+                  const ByteView &scriptCode, uint32_t flags, size_t *pBytesHashed) const override;
     const ScriptExecutionContext *GetContext() const override { return checker.GetContext(); }
 };
 
-bool SignatureExtractorChecker::CheckSig(const std::vector<uint8_t> &scriptSig,
+bool SignatureExtractorChecker::CheckSig(const ByteView &scriptSig,
                                          const std::vector<uint8_t> &vchPubKey,
-                                         const CScript &scriptCode,
+                                         const ByteView &scriptCode,
                                          uint32_t flags, size_t *pBytesHashed) const {
     if (checker.CheckSig(scriptSig, vchPubKey, scriptCode, flags, pBytesHashed)) {
         CPubKey pubkey(vchPubKey);
+        std::vector<uint8_t> vchSig(scriptSig.begin(), scriptSig.end());
         sigdata.signatures.emplace(std::piecewise_construct,
                                    std::forward_as_tuple(pubkey.GetID()),
-                                   std::forward_as_tuple(pubkey, scriptSig));
+                                   std::forward_as_tuple(std::move(pubkey), std::move(vchSig)));
         return true;
     }
     return false;
@@ -362,9 +363,9 @@ namespace {
 class DummySignatureChecker final : public BaseSignatureChecker {
 public:
     DummySignatureChecker() {}
-    bool CheckSig(const std::vector<uint8_t> &scriptSig,
+    bool CheckSig(const ByteView &scriptSig,
                   const std::vector<uint8_t> &vchPubKey,
-                  const CScript &scriptCode, uint32_t scriptFlags, size_t *pBytesHashed) const override {
+                  const ByteView &scriptCode, uint32_t scriptFlags, size_t *pBytesHashed) const override {
         if (pBytesHashed) *pBytesHashed = 0;
         return true;
     }

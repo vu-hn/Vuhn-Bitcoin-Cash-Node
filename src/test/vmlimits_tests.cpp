@@ -135,15 +135,15 @@ struct DummySigChecker : BaseSignatureChecker {
      * All null sigs verify false, and all checks using the magic 'bad pubkey'
      * value verify false as well. Otherwise, checks verify as true.
      */
-    bool VerifySignature(const std::vector<uint8_t> &vchSig,
+    bool VerifySignature(const ByteView &vchSig,
                          const CPubKey &vchPubKey,
                          const uint256 & /* sighash */) const final {
         return !vchSig.empty() && vchPubKey != CPubKey(badpub);
     }
 
-    bool CheckSig(const std::vector<uint8_t> &vchSigIn,
+    bool CheckSig(const ByteView &vchSigIn,
                   const std::vector<uint8_t> &vchPubKey,
-                  const CScript &scriptCode, uint32_t /* flags */, size_t *pbytesHashed) const final {
+                  const ByteView &scriptCode, uint32_t /* flags */, size_t *pbytesHashed) const final {
         if (pbytesHashed) *pbytesHashed = 0u;
         if (vchSigIn.empty()) {
             return false;
