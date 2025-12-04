@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2018 The Bitcoin Core developers
-// Copyright (c) 2021 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +14,9 @@
 
 #include <zmq.h>
 
-CZMQNotificationInterface::CZMQNotificationInterface() : pcontext(nullptr) {}
+#include <map>
+
+CZMQNotificationInterface::CZMQNotificationInterface() = default;
 
 CZMQNotificationInterface::~CZMQNotificationInterface() {
     Shutdown();
