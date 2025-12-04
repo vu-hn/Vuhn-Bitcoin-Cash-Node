@@ -31,7 +31,7 @@ CZMQNotificationInterface::GetActiveNotifiers() const {
     return result;
 }
 
-CZMQNotificationInterface *CZMQNotificationInterface::Create() {
+std::unique_ptr<CZMQNotificationInterface> CZMQNotificationInterface::Create() {
     std::map<std::string, CZMQNotifierFactory> factories;
 
     factories["pubhashblock"] =
@@ -65,7 +65,7 @@ CZMQNotificationInterface *CZMQNotificationInterface::Create() {
         notificationInterface->notifiers = std::move(notifiers);
 
         if (notificationInterface->Initialize()) {
-            return notificationInterface.release();
+            return notificationInterface;
         }
     }
 
@@ -186,4 +186,4 @@ void CZMQNotificationInterface::TransactionDoubleSpent(const CTransactionRef &pt
 }
 
 
-CZMQNotificationInterface *g_zmq_notification_interface = nullptr;
+std::unique_ptr<CZMQNotificationInterface> g_zmq_notification_interface;
