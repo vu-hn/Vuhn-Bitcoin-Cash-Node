@@ -40,6 +40,11 @@
 #include <string>
 #include <vector>
 
+/* Suppress GCC warnings: GCC may comlpain that it runs out of optimizer space due to inclusion of script_tests.json.h */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wdisabled-optimization"
+#endif
+
 // Uncomment if you want to output updated JSON tests.
 // #define UPDATE_JSON_TESTS
 

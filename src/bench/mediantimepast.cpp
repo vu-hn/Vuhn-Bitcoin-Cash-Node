@@ -18,7 +18,7 @@ static void DoBench(benchmark::State &state) {
     constexpr int64_t t0 = 1'700'000'000;
     chain.reserve(chainSize);
     CBlockIndex *pindexPrev{};
-    std::array<int64_t, 13> deltas = {0, 573, 10, 100, 601, -9, 635, -8, 700, 0, 832, -1, 333};
+    std::array<int64_t, 13> deltas = {{0, 573, 10, 100, 601, -9, 635, -8, 700, 0, 832, -1, 333}};
     size_t deltasIndex = 0;
     while (chain.size() < chainSize) {
         CBlockIndex *pindex = chain.emplace_back(std::make_unique<CBlockIndex>()).get();

@@ -6,6 +6,7 @@
 #include <script/script_num_encoding.h>
 
 #include <compat/endian.h>
+#include <compat/sanity.h>
 #include <random.h>
 #include <span.h>
 #include <tinyformat.h>
@@ -418,6 +419,8 @@ void BigInt::unserialize(Span<const uint8_t> b) {
         m_p.reset(); // null Impl is logcally equivalent to 0
         return;
     }
+
+    TellGCC(!b.empty()); // needed to suppress false positive warnings on newer GCC triggered by below code block
 
     const bool neg = b.back() & 0x80u; // save sign bit
     if (b.size() == 1) {
