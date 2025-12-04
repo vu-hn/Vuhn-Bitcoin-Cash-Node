@@ -1,12 +1,15 @@
 // Copyright (c) 2019-2022 The Bitcoin Core developers
-// Copyright (c) 2024 The Bitcoin developers
+// Copyright (c) 2024-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #pragma once
 
+#include <attributes.h>
+
 #include <stdexcept>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 std::string StrFormatInternalBug(std::string_view msg, std::string_view file, int line, std::string_view func);
@@ -17,13 +20,37 @@ struct NonFatalCheckError : std::runtime_error {
 
 /** Helper for CHECK_NONFATAL() */
 template <typename T>
-T&& inline_check_non_fatal(T&& val, const char* file, int line, const char* func, const char* assertion) {
+T&& inline_check_non_fatal(LIFETIMEBOUND T&& val, const char* file, int line, const char* func, const char* assertion) {
     if (!val) {
         throw NonFatalCheckError{assertion, file, line, func};
     }
     return std::forward<T>(val);
 }
 
+#if defined(NDEBUG)
+#error "Cannot compile without assertions!"
+#endif
+
+/** Helper for Assert() */
+[[noreturn]] void assertion_fail(std::string_view file, int line, std::string_view func, std::string_view assertion);
+
+/** Helper for Assert()/Assume() */
+template <bool IS_ASSERT, typename T>
+constexpr T&& inline_assertion_check(LIFETIMEBOUND T&& val, [[maybe_unused]] const char* file, [[maybe_unused]] int line,
+                                     [[maybe_unused]] const char* func, [[maybe_unused]] const char* assertion) {
+    constexpr bool debugBuild =
+#ifdef DEBUG
+        true;
+#else
+        false;
+#endif
+    if constexpr (IS_ASSERT || std::is_constant_evaluated() || debugBuild) {
+        if (!val) {
+            assertion_fail(file, line, func, assertion);
+        }
+    }
+    return std::forward<T>(val);
+}
 // All macros may use __func__ inside a lambda, so put them under nolint.
 // NOLINTBEGIN(bugprone-lambda-function-name)
 
@@ -42,3 +69,25 @@ T&& inline_check_non_fatal(T&& val, const char* file, int line, const char* func
  */
 #define CHECK_NONFATAL(condition) \
     inline_check_non_fatal(condition, __FILE__, __LINE__, __func__, #condition)
+
+/** Identity function. Abort if the value compares equal to zero */
+#define Assert(val) inline_assertion_check<true>(val, __FILE__, __LINE__, __func__, #val)
+
+/**
+ * Assume is the identity function.
+ *
+ * - Should be used to run non-fatal checks. In debug builds it behaves like
+ *   Assert()/assert() to notify developers and testers about non-fatal errors.
+ *   In production it doesn't warn or log anything.
+ * - For fatal errors, use Assert().
+ * - For non-fatal errors in interactive sessions (e.g. RPC or command line
+ *   interfaces), CHECK_NONFATAL() might be more appropriate.
+ */
+#define Assume(val) inline_assertion_check<false>(val, __FILE__, __LINE__, __func__, #val)
+
+/**
+ * NONFATAL_UNREACHABLE() is a macro that is used to mark unreachable code. It throws a NonFatalCheckError.
+ */
+#define NONFATAL_UNREACHABLE()  throw NonFatalCheckError("Unreachable code reached (non-fatal)", __FILE__, __LINE__, __func__)
+
+// NOLINTEND(bugprone-lambda-function-name)
