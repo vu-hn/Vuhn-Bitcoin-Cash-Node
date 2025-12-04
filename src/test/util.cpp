@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The Bitcoin Core developers
-// Copyright (c) 2020 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -39,8 +39,9 @@ std::shared_ptr<CBlock> PrepareBlock(const Config &config,
         std::make_shared<CBlock>(BlockAssembler{config, ::g_mempool}
                                      .CreateNewBlock(coinbase_scriptPubKey)
                                      ->block);
-
-    block->nTime = ::ChainActive().Tip()->GetMedianTimePast() + 1;
+    const CBlockIndex * const tip = ::ChainActive().Tip();
+    assert(tip != nullptr);
+    block->nTime = tip->GetMedianTimePast() + 1;
     block->hashMerkleRoot = BlockMerkleRoot(*block);
 
     return block;

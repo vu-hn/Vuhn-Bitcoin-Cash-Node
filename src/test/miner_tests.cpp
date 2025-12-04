@@ -26,6 +26,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+#include <cassert>
 #include <memory>
 #include <optional>
 
@@ -233,7 +234,9 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity) {
         {
             LOCK(cs_main);
             pblock->nVersion = 1;
-            pblock->nTime = ::ChainActive().Tip()->GetMedianTimePast() + 1;
+            const CBlockIndex * const tip = ::ChainActive().Tip();
+            assert(tip != nullptr);
+            pblock->nTime = tip->GetMedianTimePast() + 1;
             CMutableTransaction txCoinbase(*pblock->vtx[0]);
             txCoinbase.nVersion = 1;
             txCoinbase.vin[0].scriptSig = CScript();

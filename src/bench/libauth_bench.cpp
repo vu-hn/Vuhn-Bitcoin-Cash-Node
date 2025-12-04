@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Bitcoin developers
+// Copyright (c) 2024-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -225,7 +225,9 @@ void RunBench(State &state, const Test &test, const PackDesc &packDesc, const Tx
     static std::map<MapKey, CacheDataOpt> cache;
 
     const CTransaction &txn = *test.tx;
-    auto &cdata = cache[{test.ident, packDesc.name, testStd, useStd}];
+    auto &cdata = cache.emplace(std::piecewise_construct,
+                                std::forward_as_tuple(test.ident, packDesc.name, testStd, useStd),
+                                std::forward_as_tuple(std::nullopt)).first->second;
 
     if (!cdata) {
         // Save coin data

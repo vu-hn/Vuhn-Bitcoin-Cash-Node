@@ -1,5 +1,5 @@
 // Copyright (c) 2012-2016 The Bitcoin Core developers
-// Copyright (c) 2017-2023 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -15,6 +15,11 @@ BOOST_FIXTURE_TEST_SUITE(streams_tests, BasicTestingSetup)
 
 template <typename VecT>
 static bool test_generic_vector_writer() {
+#if defined(__GNUC__) && !defined(__clang__) /* Suppress false positive warnings in this function from GCC 14 & 15 */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
+
     uint8_t a(1);
     uint8_t b(2);
     uint8_t bytes[] = {3, 4, 5, 6};
@@ -78,6 +83,9 @@ static bool test_generic_vector_writer() {
     vch.clear();
 
     return true;
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 BOOST_AUTO_TEST_CASE(streams_vector_writer) {

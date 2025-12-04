@@ -1172,7 +1172,9 @@ BOOST_FIXTURE_TEST_CASE(check_consensus_rejection_of_coinbase_tokens, TestChain1
 
     const auto [currentHeight, currentMTP] = []{
         LOCK(cs_main);
-        return std::pair(::ChainActive().Tip()->nHeight, ::ChainActive().Tip()->GetMedianTimePast());
+        const CBlockIndex * const tip = ::ChainActive().Tip();
+        assert(tip != nullptr);
+        return std::pair(tip->nHeight, tip->GetMedianTimePast());
     }();
 
     // Create two coinbase transactions (one with token data and one with unparseable token data)
