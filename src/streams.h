@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +18,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -602,41 +604,24 @@ class CAutoFile {
 
     FILE *file;
 
-    void setNull() { nType = nVersion = 0; file = nullptr; }
+    void setNull();
 
 public:
-    CAutoFile(FILE *filenew, int nTypeIn, int nVersionIn)
-        : nType(nTypeIn), nVersion(nVersionIn) {
-        file = filenew;
-    }
+    CAutoFile(FILE *filenew, int nTypeIn, int nVersionIn);
 
     // Alow move-construct to transfer ownership
-    CAutoFile(CAutoFile &&o) : nType(o.nType), nVersion(o.nVersion), file(o.file) { o.setNull(); }
+    CAutoFile(CAutoFile &&o);
 
     // Allow move-assign to transfer ownership
-    CAutoFile &operator=(CAutoFile &&o) {
-        if (this != &o) {
-            if (file != o.file) fclose(); // close our managed file if we have one and it's not same as o's
-            file = o.file;
-            nType = o.nType;
-            nVersion = o.nVersion;
-            o.setNull(); // null out moved-from object to complete the transfer
-        }
-        return *this;
-    }
+    CAutoFile &operator=(CAutoFile &&o);
 
-    ~CAutoFile() { fclose(); }
+    ~CAutoFile();
 
     // Disallow copies
     CAutoFile(const CAutoFile &) = delete;
     CAutoFile &operator=(const CAutoFile &) = delete;
 
-    void fclose() {
-        if (file) {
-            ::fclose(file);
-            file = nullptr;
-        }
-    }
+    void fclose();
 
     /**
      * Get wrapped FILE* with transfer of ownership.
@@ -644,11 +629,7 @@ public:
      * responsibility of the caller of this function to clean up the returned
      * FILE*.
      */
-    FILE *release() {
-        FILE *ret = file;
-        file = nullptr;
-        return ret;
-    }
+    FILE *release();
 
     /**
      * Get wrapped FILE* without transfer of ownership.
@@ -658,7 +639,7 @@ public:
     FILE *Get() const { return file; }
 
     /** Return true if the wrapped FILE* is nullptr, false otherwise. */
-    bool IsNull() const { return (file == nullptr); }
+    bool IsNull() const { return file == nullptr; }
 
     //
     // Stream subset
@@ -666,63 +647,32 @@ public:
     int GetType() const { return nType; }
     int GetVersion() const { return nVersion; }
 
-    void read(char *pch, size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::read: file handle is nullptr");
-        }
-        if (fread(pch, 1, nSize, file) != nSize) {
-            throw std::ios_base::failure(feof(file)
-                                             ? "CAutoFile::read: end of file"
-                                             : "CAutoFile::read: fread failed");
-        }
-    }
+    void read(std::span<std::byte> buf);
+    void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
+    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
 
-    void ignore(size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::ignore: file handle is nullptr");
-        }
-        uint8_t data[4096];
-        while (nSize > 0) {
-            size_t nNow = std::min<size_t>(nSize, sizeof(data));
-            if (fread(data, 1, nNow, file) != nNow) {
-                throw std::ios_base::failure(
-                    feof(file) ? "CAutoFile::ignore: end of file"
-                               : "CAutoFile::read: fread failed");
-            }
-            nSize -= nNow;
-        }
-    }
+    void ignore(size_t nSize);
 
-    void write(const char *pch, size_t nSize) {
-        if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::write: file handle is nullptr");
-        }
-        if (fwrite(pch, 1, nSize, file) != nSize) {
-            throw std::ios_base::failure("CAutoFile::write: write failed");
-        }
-    }
+    void write(std::span<const std::byte> buf);
+    void write(const std::byte *pbuf, size_t nSize) { write(std::span{pbuf, nSize}); }
+    void write(const char *pch, size_t nSize) { write(reinterpret_cast<const std::byte *>(pch), nSize); }
 
     template <typename T> CAutoFile &operator<<(const T &obj) {
         // Serialize to this stream
         if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::operator<<: file handle is nullptr");
+            throw std::ios_base::failure("CAutoFile::operator<<: file handle is nullptr");
         }
         ::Serialize(*this, obj);
-        return (*this);
+        return *this;
     }
 
     template <typename T> CAutoFile &operator>>(T &&obj) {
         // Unserialize from this stream
         if (!file) {
-            throw std::ios_base::failure(
-                "CAutoFile::operator>>: file handle is nullptr");
+            throw std::ios_base::failure("CAutoFile::operator>>: file handle is nullptr");
         }
         ::Unserialize(*this, obj);
-        return (*this);
+        return *this;
     }
 };
 
@@ -750,41 +700,15 @@ private:
     //! how many bytes we guarantee to rewind
     uint64_t nRewind;
     //! the buffer
-    std::vector<char> vchBuf;
+    std::vector<std::byte> byteBuf;
 
 protected:
     //! read data from the source to fill the buffer
-    bool Fill() {
-        unsigned int pos = nSrcPos % vchBuf.size();
-        unsigned int readNow = vchBuf.size() - pos;
-        unsigned int nAvail = vchBuf.size() - (nSrcPos - nReadPos) - nRewind;
-        if (nAvail < readNow) {
-            readNow = nAvail;
-        }
-        if (readNow == 0) {
-            return false;
-        }
-        size_t nBytes = fread((void *)&vchBuf[pos], 1, readNow, src);
-        if (nBytes == 0) {
-            throw std::ios_base::failure(
-                feof(src) ? "CBufferedFile::Fill: end of file"
-                          : "CBufferedFile::Fill: fread failed");
-        } else {
-            nSrcPos += nBytes;
-            return true;
-        }
-    }
+    bool Fill();
 
 public:
-    CBufferedFile(FILE *fileIn, uint64_t nBufSize, uint64_t nRewindIn,
-                  int nTypeIn, int nVersionIn)
-        : nType(nTypeIn), nVersion(nVersionIn), nSrcPos(0), nReadPos(0),
-          nReadLimit(std::numeric_limits<uint64_t>::max()), nRewind(nRewindIn),
-          vchBuf(nBufSize, 0) {
-        src = fileIn;
-    }
-
-    ~CBufferedFile() { fclose(); }
+    CBufferedFile(FILE *fileIn, uint64_t nBufSize, uint64_t nRewindIn, int nTypeIn, int nVersionIn);
+    ~CBufferedFile();
 
     // Disallow copies
     CBufferedFile(const CBufferedFile &) = delete;
@@ -793,100 +717,35 @@ public:
     int GetVersion() const { return nVersion; }
     int GetType() const { return nType; }
 
-    void fclose() {
-        if (src) {
-            ::fclose(src);
-            src = nullptr;
-        }
-    }
+    void fclose();
 
     //! check whether we're at the end of the source file
-    bool eof() const { return nReadPos == nSrcPos && feof(src); }
+    bool eof() const { return nReadPos == nSrcPos && std::feof(src); }
 
     //! read a number of bytes
-    void read(char *pch, size_t nSize) {
-        if (nSize + nReadPos > nReadLimit) {
-            throw std::ios_base::failure("Read attempted past buffer limit");
-        }
-        if (nSize + nRewind > vchBuf.size()) {
-            throw std::ios_base::failure("Read larger than buffer size");
-        }
-        while (nSize > 0) {
-            if (nReadPos == nSrcPos) {
-                Fill();
-            }
-            unsigned int pos = nReadPos % vchBuf.size();
-            size_t nNow = nSize;
-            if (nNow + pos > vchBuf.size()) {
-                nNow = vchBuf.size() - pos;
-            }
-            if (nNow + nReadPos > nSrcPos) {
-                nNow = nSrcPos - nReadPos;
-            }
-            memcpy(pch, &vchBuf[pos], nNow);
-            nReadPos += nNow;
-            pch += nNow;
-            nSize -= nNow;
-        }
-    }
+    void read(std::span<std::byte> outBuf);
+    void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
+    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
 
     //! return the current reading position
     uint64_t GetPos() const { return nReadPos; }
 
     //! rewind to a given reading position
-    bool SetPos(uint64_t nPos) {
-        nReadPos = nPos;
-        if (nReadPos + nRewind < nSrcPos) {
-            nReadPos = nSrcPos - nRewind;
-            return false;
-        } else if (nReadPos > nSrcPos) {
-            nReadPos = nSrcPos;
-            return false;
-        } else {
-            return true;
-        }
-    }
+    bool SetPos(uint64_t nPos);
 
-    bool Seek(uint64_t nPos) {
-        long nLongPos = nPos;
-        if (nPos != (uint64_t)nLongPos) {
-            return false;
-        }
-        if (fseek(src, nLongPos, SEEK_SET)) {
-            return false;
-        }
-        nLongPos = ftell(src);
-        nSrcPos = nLongPos;
-        nReadPos = nLongPos;
-        return true;
-    }
+    bool Seek(uint64_t nPos);
 
     //! Prevent reading beyond a certain position. No argument removes the
     //! limit.
-    bool SetLimit(uint64_t nPos = std::numeric_limits<uint64_t>::max()) {
-        if (nPos < nReadPos) {
-            return false;
-        }
-        nReadLimit = nPos;
-        return true;
-    }
+    bool SetLimit(uint64_t nPos = std::numeric_limits<uint64_t>::max());
 
     template <typename T> CBufferedFile &operator>>(T &&obj) {
         // Unserialize from this stream
         ::Unserialize(*this, obj);
-        return (*this);
+        return *this;
     }
 
     //! search for a given byte in the stream, and remain positioned on it
-    void FindByte(char ch) {
-        while (true) {
-            if (nReadPos == nSrcPos) {
-                Fill();
-            }
-            if (vchBuf[nReadPos % vchBuf.size()] == ch) {
-                break;
-            }
-            nReadPos++;
-        }
-    }
+    void FindByte(std::byte ch);
+    void FindByte(char ch) { FindByte(static_cast<std::byte>(ch)); }
 };
