@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2017-2023 The Bitcoin developers
+# Copyright (c) 2017-2025 The Bitcoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """
@@ -128,8 +128,11 @@ MAX_INV_BROADCAST_INTERVAL = 1_000_000
 # The number of blocks ahead of current tip that the node downloads from the p2p network
 BLOCK_DOWNLOAD_WINDOW = 1024
 
-# The maximuim size of a standard P2S script, post upgrade 12 activation
+# The maximum size of a standard P2S script, post upgrade 12 activation
 MAX_P2S_SCRIPT_SIZE = 201
+
+# The default cumulative number of bytes a standard txn may contain as OP_RETURN output scripts (-datacarriersize)
+MAX_OP_RETURN_RELAY = 223
 
 # Ensure sanity of these constants
 if DEFAULT_MAX_GENERATED_BLOCK_SIZE > DEFAULT_CONSENSUS_BLOCK_SIZE:

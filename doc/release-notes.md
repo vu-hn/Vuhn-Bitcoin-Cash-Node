@@ -31,6 +31,9 @@ None
     and additionally having a `p2shType` key.
   - A REST endpoint `/block/withpatterns/<HASH>` has been added which corresponds to `getblock` RPC with `verbosity=3 patterns=true`.
   - A REST endpoint `/tx/withpatterns/<HASH>` has been added which corresponds to `/tx/` with patterns added.
+- Two new keys have been added to the results dictionary of the `getmempoolinfo` RPC method:
+  - `permitbaremultisig` (true or false) indicates the node's `-permitbaremultisig` app-global setting.
+  - `maxdatacarriersize` (numeric) indicates the node's `-datacarriersize=<n>` app-global setting.
 
 ## Deprecated functionality
 
