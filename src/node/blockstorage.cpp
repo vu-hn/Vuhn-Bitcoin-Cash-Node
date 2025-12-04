@@ -23,6 +23,8 @@
 #include <util/time.h>
 #include <validation.h>
 
+#include <limits>
+
 std::atomic_bool fImporting(false);
 std::atomic_bool fReindex(false);
 bool fHavePruned GUARDED_BY(cs_main) = false;
@@ -119,15 +121,19 @@ static bool UndoWriteToDisk(const CBlockUndo &blockundo, FlatFilePos &pos,
     }
 
     // Write index header
-    unsigned int nSize = GetSerializeSize(blockundo, fileout.GetVersion());
+    size_t zSize;
+    unsigned int nSize = zSize = GetSerializeSize(blockundo, fileout.GetVersion());
+    assert(zSize == nSize && "Overflow check failed");
     fileout << messageStart << nSize;
 
     // Write undo data
-    long fileOutPos = ftell(fileout.Get());
+    long fileOutPos = std::ftell(fileout.Get());
     if (fileOutPos < 0) {
         return error("%s: ftell failed", __func__);
+    } else if (static_cast<uint64_t>(fileOutPos) > std::numeric_limits<unsigned int>::max()) {
+        return error("%s: ftell overflowed the size of an unsigned int", __func__);
     }
-    pos.nPos = (unsigned int)fileOutPos;
+    pos.nPos = static_cast<unsigned int>(fileOutPos);
     fileout << blockundo;
 
     // calculate & write checksum
@@ -317,16 +323,20 @@ static bool WriteBlockToDisk(const CBlock &block, FlatFilePos &pos,
     }
 
     // Write index header
-    unsigned int nSize = GetSerializeSize(block, fileout.GetVersion());
+    size_t zSize;
+    unsigned int nSize = zSize = GetSerializeSize(block, fileout.GetVersion());
+    assert(zSize == nSize && "Overflow check failed");
     fileout << messageStart << nSize;
 
     // Write block
-    long fileOutPos = ftell(fileout.Get());
+    long fileOutPos = std::ftell(fileout.Get());
     if (fileOutPos < 0) {
         return error("WriteBlockToDisk: ftell failed");
+    } else if (static_cast<uint64_t>(fileOutPos) > std::numeric_limits<unsigned int>::max()) {
+        return error("%s: ftell overflowed the size of an unsigned int", __func__);
     }
 
-    pos.nPos = (unsigned int)fileOutPos;
+    pos.nPos = static_cast<unsigned int>(fileOutPos);
     fileout << block;
 
     return true;
@@ -525,7 +535,9 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t> &rawBlock, const CBlockIndex *pin
 
 FlatFilePos SaveBlockToDisk(const CBlock &block, int nHeight, const CChainParams &chainparams, const FlatFilePos *dbp)
     EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
-    unsigned int nBlockSize = ::GetSerializeSize(block, CLIENT_VERSION);
+    size_t zBlockSize;
+    unsigned int nBlockSize = zBlockSize = ::GetSerializeSize(block, CLIENT_VERSION);
+    assert(zBlockSize == nBlockSize && "Overflow check failed");
     FlatFilePos blockPos;
     if (dbp != nullptr) {
         blockPos = *dbp;
