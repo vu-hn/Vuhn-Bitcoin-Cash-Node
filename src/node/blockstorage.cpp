@@ -134,13 +134,15 @@ static bool UndoWriteToDisk(const CBlockUndo &blockundo, FlatFilePos &pos,
         return error("%s: ftell overflowed the size of an unsigned int", __func__);
     }
     pos.nPos = static_cast<unsigned int>(fileOutPos);
-    fileout << blockundo;
+    // Write the remaining data using the BufferedWriter which is faster; `fileout` is moved-from beyond this point.
+    BufferedWriter writer(std::move(fileout));
+    writer << blockundo;
 
     // calculate & write checksum
     CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
     hasher << hashBlock;
     hasher << blockundo;
-    fileout << hasher.GetHash();
+    writer << hasher.GetHash();
 
     return true;
 }
@@ -156,15 +158,17 @@ bool UndoReadFromDisk(CBlockUndo &blockundo, const CBlockIndex *pindex) {
     if (filein.IsNull()) {
         return error("%s: OpenUndoFile failed", __func__);
     }
+    // We use a buffered reader for better performance; note that `filein` is moved-from beyond this point.
+    BufferedReader reader(std::move(filein));
 
     // Read block
     uint256 hashChecksum;
     // We need a CHashVerifier as reserializing may lose data
-    CHashVerifier<CAutoFile> verifier(&filein);
+    CHashVerifier<decltype(reader)> verifier(&reader);
     try {
         verifier << pindex->pprev->GetBlockHash();
         verifier >> blockundo;
-        filein >> hashChecksum;
+        reader >> hashChecksum;
     } catch (const std::exception &e) {
         return error("%s: Deserialize or I/O error - %s", __func__, e.what());
     }
@@ -337,7 +341,10 @@ static bool WriteBlockToDisk(const CBlock &block, FlatFilePos &pos,
     }
 
     pos.nPos = static_cast<unsigned int>(fileOutPos);
-    fileout << block;
+
+    // Serialize the rest of the block using the faster BufferedWriter; `fileout` is moved-from beyond this point.
+    BufferedWriter writer(std::move(fileout));
+    writer << block;
 
     return true;
 }
@@ -378,7 +385,8 @@ bool ReadBlockFromDisk(CBlock &block, const FlatFilePos &pos, const Consensus::P
 
     // Read block
     try {
-        filein >> block;
+        // Note that `filein` is moved-from beyond this point
+        BufferedReader(std::move(filein)) >> block;
     } catch (const std::exception &e) {
         return error("%s: Deserialize or I/O error - %s at %s", __func__,
                      e.what(), pos.ToString());

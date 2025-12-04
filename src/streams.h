@@ -16,8 +16,6 @@
 #include <cstring>
 #include <ios>
 #include <limits>
-#include <map>
-#include <set>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -650,6 +648,8 @@ public:
     void read(std::span<std::byte> buf);
     void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
     void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
+    /** Implementation detail, only used internally. */
+    std::size_t detail_fread(std::span<std::byte> dst);
 
     void ignore(size_t nSize);
 
@@ -676,6 +676,8 @@ public:
     }
 };
 
+using DataBuffer = std::vector<std::byte>;
+
 /**
  * Non-refcounted RAII wrapper around a FILE* that implements a ring buffer to
  * deserialize from. It guarantees the ability to rewind a given number of
@@ -700,7 +702,7 @@ private:
     //! how many bytes we guarantee to rewind
     uint64_t nRewind;
     //! the buffer
-    std::vector<std::byte> byteBuf;
+    DataBuffer byteBuf;
 
 protected:
     //! read data from the source to fill the buffer
@@ -748,4 +750,106 @@ public:
     //! search for a given byte in the stream, and remain positioned on it
     void FindByte(std::byte ch);
     void FindByte(char ch) { FindByte(static_cast<std::byte>(ch)); }
+};
+
+namespace detail {
+template <typename S>
+class BufferedCommon {
+protected:
+    S stream;
+    DataBuffer buf;
+    size_t buf_pos;
+
+    //! Requires stream has a lifetime longer than this instance
+    BufferedCommon(S&& streamIn, size_t size, size_t pos)
+        : stream{std::move(streamIn)}, buf(size), buf_pos{pos} {}
+
+public:
+    // Stream API
+    int GetType() const { return stream.GetType(); }
+    int GetVersion() const { return stream.GetVersion(); }
+
+    // Helper methods
+    const S& GetStream() const { return stream; }
+};
+} // namespace detail
+
+/**
+ * Wrapper that buffers reads from an underlying stream.
+ * Requires underlying stream to support read() and detail_fread() calls
+ * to support fixed-size and variable-sized reads, respectively.
+ *
+ * Also requires that the underlying stream properly support move semantics.
+ */
+template <typename S>
+class BufferedReader : public detail::BufferedCommon<S> {
+public:
+    //! Requires stream has a lifetime longer than this instance
+    explicit BufferedReader(S stream, size_t size = 1 << 16)
+        : detail::BufferedCommon<S>(std::move(stream), size, size) {}
+
+    void read(std::span<std::byte> dst) {
+        if (const size_t available = std::min(dst.size(), this->buf.size() - this->buf_pos)) {
+            std::memcpy(dst.data(), this->buf.data() + this->buf_pos, available);
+            this->buf_pos += available;
+            dst = dst.subspan(available);
+        }
+        if (dst.size()) {
+            assert(this->buf_pos == this->buf.size());
+            this->stream.read(dst);
+
+            this->buf_pos = 0;
+            this->buf.resize(this->stream.detail_fread(this->buf));
+        }
+    }
+
+    // Legacy API support
+    void read(char *pch, size_t nSize) { read(std::span{reinterpret_cast<std::byte *>(pch), nSize}); }
+
+    template <typename T>
+    BufferedReader& operator>>(T&& obj) {
+        ::Unserialize(*this, obj);
+        return *this;
+    }
+};
+
+/**
+ * Wrapper that buffers writes to an underlying stream.
+ * Requires underlying stream to support write() method.
+ *
+ * Also requires that the underlying stream properly support move semantics.
+ */
+template <typename S>
+class BufferedWriter : public detail::BufferedCommon<S> {
+public:
+    //! Requires stream has a lifetime longer than this instance
+    explicit BufferedWriter(S stream, size_t size = 1 << 16)
+        : detail::BufferedCommon<S>(std::move(stream), size, 0) {}
+
+    ~BufferedWriter() { flush(); }
+
+    void flush() {
+        if (this->buf_pos) {
+            this->stream.write(std::span{this->buf}.first(this->buf_pos));
+        }
+        this->buf_pos = 0;
+    }
+
+    void write(std::span<const std::byte> src) {
+        while (const size_t available = std::min(src.size(), this->buf.size() - this->buf_pos)) {
+            std::memcpy(this->buf.data() + this->buf_pos, src.data(), available);
+            this->buf_pos += available;
+            if (this->buf_pos == this->buf.size()) flush();
+            src = src.subspan(available);
+        }
+    }
+
+    // Legacy API support
+    void write(const char *pch, size_t nSize) { write(std::span{reinterpret_cast<const std::byte *>(pch), nSize}); }
+
+    template <typename T>
+    BufferedWriter& operator<<(const T& obj) {
+        ::Serialize(*this, obj);
+        return *this;
+    }
 };
