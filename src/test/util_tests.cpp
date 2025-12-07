@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2022 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -2406,4 +2406,29 @@ BOOST_AUTO_TEST_CASE(util_overflow) {
     TestAddMulMatrixOverflow<unsigned>();
     TestAddSubMulMatrix<signed>();
 }
+
+BOOST_AUTO_TEST_CASE(test_LogEscapeMessageInPlace) {
+    std::string str;
+    // ASCII and UTF-8 must pass through unaltered.
+    str = "Valid log message貓";
+    BOOST_CHECK(not BCLog::LogEscapeMessageInPlace(str));
+    BOOST_CHECK_EQUAL(str, "Valid log message貓");
+    // A more fancy and complex UTF-8 string also should be unaltered.
+    str = "Smileys: 😀 😂 😊 😎, Fruit: 🍇 🍊 🍏 🥝, Phoenican: 𐤀 𐤁 𐤂 𐤃, Colored: ⌚⏰🟥🟩";
+    BOOST_CHECK(not BCLog::LogEscapeMessageInPlace(str));
+    BOOST_CHECK_EQUAL(str, "Smileys: 😀 😂 😊 😎, Fruit: 🍇 🍊 🍏 🥝, Phoenican: 𐤀 𐤁 𐤂 𐤃, Colored: ⌚⏰🟥🟩");
+    // Newlines must pass through unaltered.
+    str = "Message\n with newlines\n";
+    BOOST_CHECK(not BCLog::LogEscapeMessageInPlace(str));
+    BOOST_CHECK_EQUAL(str, "Message\n with newlines\n");
+    // Other control characters are escaped in C syntax.
+    str = "\x01\x7f Corrupted log message\x0d";
+    BOOST_CHECK(BCLog::LogEscapeMessageInPlace(str));
+    BOOST_CHECK_EQUAL(str, R"(\x01\x7f Corrupted log message\x0d)");
+    // Embedded NULL characters are escaped too.
+    str.assign("O\x00O", 3);
+    BOOST_CHECK(BCLog::LogEscapeMessageInPlace(str));
+    BOOST_CHECK_EQUAL(str, R"(O\x00O)");
+}
+
 BOOST_AUTO_TEST_SUITE_END()
