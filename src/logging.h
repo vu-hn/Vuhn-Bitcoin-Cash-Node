@@ -232,6 +232,9 @@ public:
  */
 bool LogEscapeMessageInPlace(std::string &str);
 
+/** Delete and re-create the LogInstance. Used by tests. */
+void ReconstructLogInstance();
+
 } // namespace BCLog
 
 BCLog::Logger &LogInstance();

@@ -9,6 +9,7 @@
 #include <util/threadnames.h>
 #include <util/time.h>
 
+#include <memory>
 #include <mutex>
 
 bool fLogIPs = DEFAULT_LOGIPS;
@@ -32,6 +33,12 @@ BCLog::Logger &LogInstance() {
      */
     static BCLog::Logger *g_logger{new BCLog::Logger()};
     return *g_logger;
+}
+
+void BCLog::ReconstructLogInstance() {
+    auto &instance = LogInstance();
+    std::destroy_at(&instance);
+    std::construct_at(&instance);
 }
 
 static int FileWriteStr(const std::string &str, FILE *fp) {
