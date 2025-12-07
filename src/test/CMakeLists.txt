@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2023 The Bitcoin developers
+# Copyright (c) 2018-2025 The Bitcoin developers
 
 project(bitcoin-test)
 
@@ -256,6 +256,7 @@ add_boost_unit_tests_to_suite(bitcoin test_bitcoin
     key_tests.cpp
     lcg_tests.cpp
     libauth_tests.cpp
+    logging_tests.cpp
     mempool_tests.cpp
     merkleblock_tests.cpp
     merkle_tests.cpp
