@@ -42,6 +42,10 @@ public:
 
     // Convenience method: call f once deltaMilliSeconds from now
     void scheduleFromNow(Function f, int64_t deltaMilliSeconds);
+    // Helper for above that uses a chrono type
+    void scheduleFromNow(Function f, std::chrono::milliseconds ms) {
+        scheduleFromNow(std::move(f), static_cast<int64_t>(ms.count()));
+    }
 
     // Another convenience method: call p approximately every deltaMilliSeconds
     // forever, starting deltaMilliSeconds from now untill p returns false. To
@@ -49,7 +53,6 @@ public:
     // deltaMilliSeconds later. If you need more accurate scheduling, don't use
     // this method.
     void scheduleEvery(Predicate p, int64_t deltaMilliSeconds);
-
     // Helper for above that uses a chrono type
     void scheduleEvery(Predicate p, std::chrono::milliseconds msec) {
         scheduleEvery(std::move(p), static_cast<int64_t>(msec.count()));
