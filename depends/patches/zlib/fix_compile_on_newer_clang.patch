@@ -1,0 +1,14 @@
+diff -urN a/zutil.h b/zutil.h
+--- a/zutil.h	2017-01-01 09:37:10
++++ b/zutil.h	2025-12-11 02:30:30
+@@ -135,10 +135,6 @@
+ #  ifndef Z_SOLO
+ #    if defined(__MWERKS__) && __dest_os != __be_os && __dest_os != __win32_os
+ #      include <unix.h> /* for fdopen */
+-#    else
+-#      ifndef fdopen
+-#        define fdopen(fd,mode) NULL /* No fdopen() */
+-#      endif
+ #    endif
+ #  endif
+ #endif

@@ -4,6 +4,8 @@ $(package)_download_path=https://archives.boost.io/release/$(subst _,.,$($(packa
 $(package)_file_name=boost_$($(package)_version).tar.bz2
 $(package)_sha256_hash=fc9f85fc030e233142908241af7a846e60630aa7388de9a5fafb1f3a26840854
 $(package)_dependencies=native_b2
+$(package)_patches = fix_boost_unary_function_base.patch
+$(package)_patches += build-with-newer-clang.patch
 
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
@@ -22,12 +24,14 @@ else
 $(package)_toolset_$(host_os)=gcc
 endif
 $(package)_config_libraries=atomic,date_time,chrono,filesystem,system,thread,test
-$(package)_cxxflags=-std=c++17 -fvisibility=hidden
+$(package)_cxxflags+=-std=c++17 -fvisibility=hidden
 $(package)_cxxflags_linux=-fPIC
 endef
 
 define $(package)_preprocess_cmds
-  echo "using $($(package)_toolset_$(host_os)) : : $($(package)_cxx) : <cflags>\"$($(package)_cflags)\" <cxxflags>\"$($(package)_cxxflags)\" <compileflags>\"$($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$($(package)_ar)\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;" > user-config.jam
+  echo "using $($(package)_toolset_$(host_os)) : : $($(package)_cxx) : <cflags>\"$($(package)_cflags)\" <cxxflags>\"$($(package)_cxxflags)\" <compileflags>\"$($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$($(package)_ar)\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;" > user-config.jam && \
+  patch -p1 < $($(package)_patch_dir)/fix_boost_unary_function_base.patch && \
+  patch -p1 < $($(package)_patch_dir)/build-with-newer-clang.patch
 endef
 
 define $(package)_config_cmds

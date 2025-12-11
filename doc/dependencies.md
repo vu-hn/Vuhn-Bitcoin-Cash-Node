@@ -30,7 +30,7 @@ These dependencies are required:
 | PCRE |  |  |  |  | Yes |  |  |
 | Python (tests) |  | [3.6](https://www.python.org/downloads) |  |  |  |  |  |
 | qrencode | [3.4.4](https://fukuchi.org/works/qrencode) |  | No |  |  | QR codes in GUI  | Optional for generating QR codes (only needed when GUI enabled)
-| Qt | [5.15.3](https://download.qt.io/official_releases/qt/) | 5.5.1 | No |  |  |  GUI              | GUI toolkit (only needed when GUI enabled) |
+| Qt | [5.15.16](https://download.qt.io/archive/qt/5.15/) | 5.9.5 | No |  |  |  GUI              | GUI toolkit (only needed when GUI enabled) |
 | univalue |||||   | Utility          | JSON parsing and encoding (bundled version will be used unless --with-system-univalue passed to configure)
 | XCB |  |  |  |  | Yes (Linux only) |  |  |
 | xkbcommon |  |  |  |  | Yes (Linux only) |  |  |
