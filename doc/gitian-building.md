@@ -62,11 +62,11 @@ under `usr/include/c++/v1`.
 
 ```bash
 cd ~/gitian-builder
-curl -LO https://github.com/joseluisq/macosx-sdks/releases/download/13.3/MacOSX13.3.sdk.tar.xz
-echo "518e35eae6039b3f64e8025f4525c1c43786cc5cf39459d609852faf091e34be MacOSX13.3.sdk.tar.xz" | sha256sum -c
-# Should echo "MacOSX13.3.sdk.tar.xz: OK"
+curl -LO https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
+echo "6e146275d19f027faa2e8354da5e0267513abf013b8f16ad65a231653a2b1c5d MacOSX14.5.sdk.tar.xz" | sha256sum -c
+# Should echo "MacOSX14.5.sdk.tar.xz: OK"
 mkdir -p inputs
-mv MacOSX13.3.sdk.tar.xz inputs
+mv MacOSX14.5.sdk.tar.xz inputs
 ```
 
 Alternatively, you can skip the macOS build by adding `--os=lw` below.

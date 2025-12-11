@@ -114,7 +114,7 @@ The following are limitations in this release of which users should be aware:
 Some issues could not be closed in time for release, but we are tracking all
 of them on our GitLab repository.
 
-- The minimum macOS version is 13.3 (Ventura).
+- The minimum macOS version is 14.5 (Sonoma).
   Earlier macOS versions are no longer supported.
 
 - Windows users are recommended not to run multiple instances of bitcoin-qt

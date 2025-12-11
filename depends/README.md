@@ -57,8 +57,8 @@ done like this:
 ```sh
 make download
 mkdir SDKs
-tar -C SDKs -xf /path/to/MacOSX13.3.sdk.tar.xz
-make build-osx HOST=x86_64-apple-darwin22
+tar -C SDKs -xf /path/to/MacOSX14.5.sdk.tar.xz
+make build-osx HOST=x86_64-apple-darwin23
 ```
 
 Building the node against these dependencies is again a matter of (starting
@@ -138,8 +138,8 @@ In this example, `-DBUILD_BITCOIN_WALLET=OFF` should be passed to the `cmake`
 command line to ensure that the build will not fail due to missing dependencies.
 
 NOTE: The SDK_PATH should be set to the parent folder in which the
-`MacOSX13.3.sdk/` is located. Alternatively, you can unpack the SDK within
-the `depends/SDKs/` folder or create a symbolic link named `MacOSX13.3.sdk/`
+`MacOSX14.5.sdk/` is located. Alternatively, you can unpack the SDK within
+the `depends/SDKs/` folder or create a symbolic link named `MacOSX14.5.sdk/`
 to it from there.
 
 Additional targets:

@@ -12,7 +12,6 @@ packages:
 - "bison"
 - "bsdmainutils"
 - "ca-certificates"
-- "clang"
 - "cmake"
 - "curl"
 - "faketime"
@@ -56,18 +55,40 @@ packages:
 - "protobuf-compiler"
 - "qttools5-dev"
 - "zlib1g-dev"
+repositories:
+- "distribution": "jammy"
+  "source": "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main"
+  keys:
+  - server: "keyserver.ubuntu.com"
+    recv:
+    - "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
+  packages:
+  - "clang-18"
 remotes:
 - "url": "https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node.git"
   "dir": "bitcoin"
 files:
-- "MacOSX13.3.sdk.tar.xz"
+- "MacOSX14.5.sdk.tar.xz"
 script: |
+  # So that we can use clang-18, we must alias clang -> clang-18 using scripts in $HOME/bin
+  mkdir -p $HOME/bin
+  echo '#!/bin/bash' > $HOME/bin/clang
+  echo 'exec clang-18 "$@"' >> $HOME/bin/clang
+  chmod +x $HOME/bin/clang
+  echo '#!/bin/bash' > $HOME/bin/clang++
+  echo 'exec clang++-18 "$@"' >> $HOME/bin/clang++
+  chmod +x $HOME/bin/clang++
+  echo '#!/bin/bash' > $HOME/bin/clang-cpp
+  echo 'exec clang-cpp-18 $"@"' >> $HOME/bin/clang-cpp
+  chmod +x $HOME/bin/clang-cpp
+  export PATH=$HOME/bin:${PATH}
+
   WRAP_DIR=$HOME/wrapped
-  HOSTS="x86_64-apple-darwin22"
+  HOSTS="x86_64-apple-darwin23"
 
   # CMake toolchain file name differ from host name
   declare -A CMAKE_TOOLCHAIN_FILE
-  CMAKE_TOOLCHAIN_FILE[x86_64-apple-darwin22]=OSX.cmake
+  CMAKE_TOOLCHAIN_FILE[x86_64-apple-darwin23]=OSX.cmake
 
   INSTALL_COMPONENTS="bitcoind bitcoin-qt bitcoin-seeder"
 
@@ -124,7 +145,7 @@ script: |
   BASEPREFIX=`pwd`/depends
 
   mkdir -p ${BASEPREFIX}/SDKs
-  tar -C ${BASEPREFIX}/SDKs -xf ${BUILD_DIR}/MacOSX13.3.sdk.tar.xz
+  tar -C ${BASEPREFIX}/SDKs -xf ${BUILD_DIR}/MacOSX14.5.sdk.tar.xz
 
   # Build dependencies for each host
   for i in $HOSTS; do

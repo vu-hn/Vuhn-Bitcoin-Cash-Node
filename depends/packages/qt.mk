@@ -1,29 +1,33 @@
 package=qt
-$(package)_version=5.15.3
-$(package)_download_path=https://download.qt.io/official_releases/qt/5.15/$($(package)_version)/submodules
+$(package)_version=5.15.16
+$(package)_download_path=https://download.qt.io/archive/qt/5.15/$($(package)_version)/submodules
 $(package)_suffix=everywhere-opensource-src-$($(package)_version).tar.xz
 $(package)_file_name=qtbase-$($(package)_suffix)
-$(package)_sha256_hash=26394ec9375d52c1592bd7b689b1619c6b8dbe9b6f91fdd5c355589787f3a0b6
+$(package)_sha256_hash=b04815058c18058b6ba837206756a2c87d1391f07a0dcb0dd314f970fd041592
 $(package)_linux_dependencies=freetype fontconfig libxcb libxkbcommon libxcb_util libxcb_util_render libxcb_util_keysyms libxcb_util_image libxcb_util_wm
 $(package)_qt_libs=corelib network widgets gui plugins testlib
 $(package)_linguist_tools = lrelease lupdate lconvert
-$(package)_patches = qt.pro qttools_src.pro
-$(package)_patches += fix_qt_pkgconfig.patch mac-qmake.conf fix_no_printer.patch no-xlib.patch
-$(package)_patches += dont_hardcode_x86_64.patch fix_montery_include.patch
-$(package)_patches += fix_android_jni_static.patch dont_hardcode_pwd.patch
-$(package)_patches += qtbase-moc-ignore-gcc-macro.patch fix_limits_header.patch
-$(package)_patches += use_android_ndk23.patch
+$(package)_patches = qt.pro qttools_src.pro mac-qmake.conf
+$(package)_patches += fix_qt_pkgconfig.patch
+$(package)_patches += no-xlib.patch
+$(package)_patches += dont_hardcode_pwd.patch
+$(package)_patches += qtbase-moc-ignore-gcc-macro.patch
 $(package)_patches += rcc_hardcode_timestamp.patch
 $(package)_patches += fix_qpainter_non_determinism.patch
 $(package)_patches += disable_xinerama.patch
 $(package)_patches += dont_use_glibc_getentropy.patch
 $(package)_patches += dont_use_statx_renameat2.patch
+$(package)_patches += fast_fixed_dtoa_no_optimize.patch
+$(package)_patches += duplicate_lcqpafonts.patch
+$(package)_patches += memory_resource.patch
+$(package)_patches += clang_18_libpng.patch
+$(package)_patches += utc_from_string_no_optimize.patch
 
 $(package)_qttranslations_file_name=qttranslations-$($(package)_suffix)
-$(package)_qttranslations_sha256_hash=5d7869f670a135ad0986e266813b9dd5bbae2b09577338f9cdf8904d4af52db0
+$(package)_qttranslations_sha256_hash=415dbbb82a75dfc9a7be969e743bee54c0e6867be37bce4cf8f03da39f20112a
 
 $(package)_qttools_file_name=qttools-$($(package)_suffix)
-$(package)_qttools_sha256_hash=463b2fe71a085e7ab4e39333ae360ab0ec857b966d7a08f752c427e5df55f90d
+$(package)_qttools_sha256_hash=1cab11887faca54af59f4995ee435c9ad98d194e9e6889c846692c8b6815fc1c
 
 $(package)_extra_sources  = $($(package)_qttranslations_file_name)
 $(package)_extra_sources += $($(package)_qttools_file_name)
@@ -52,6 +56,7 @@ $(package)_config_opts += -no-linuxfb
 $(package)_config_opts += -no-libjpeg
 $(package)_config_opts += -no-libproxy
 $(package)_config_opts += -no-libudev
+$(package)_config_opts += -no-mimetype-database
 $(package)_config_opts += -no-mtdev
 $(package)_config_opts += -no-openssl
 $(package)_config_opts += -no-openvg
@@ -237,15 +242,14 @@ define $(package)_preprocess_cmds
   cp $($(package)_patch_dir)/qttools_src.pro qttools/src/src.pro && \
   patch -p1 -i $($(package)_patch_dir)/dont_hardcode_pwd.patch && \
   patch -p1 -i $($(package)_patch_dir)/fix_qt_pkgconfig.patch && \
-  patch -p1 -i $($(package)_patch_dir)/fix_no_printer.patch && \
-  patch -p1 -i $($(package)_patch_dir)/fix_android_jni_static.patch && \
   patch -p1 -i $($(package)_patch_dir)/no-xlib.patch && \
-  patch -p1 -i $($(package)_patch_dir)/dont_hardcode_x86_64.patch && \
   patch -p1 -i $($(package)_patch_dir)/qtbase-moc-ignore-gcc-macro.patch && \
-  patch -p1 -i $($(package)_patch_dir)/fix_limits_header.patch && \
-  patch -p1 -i $($(package)_patch_dir)/fix_montery_include.patch && \
-  patch -p1 -i $($(package)_patch_dir)/use_android_ndk23.patch && \
+  patch -p1 -i $($(package)_patch_dir)/memory_resource.patch && \
+  patch -p1 -i $($(package)_patch_dir)/clang_18_libpng.patch && \
   patch -p1 -i $($(package)_patch_dir)/rcc_hardcode_timestamp.patch && \
+  patch -p1 -i $($(package)_patch_dir)/duplicate_lcqpafonts.patch && \
+  patch -p1 -i $($(package)_patch_dir)/utc_from_string_no_optimize.patch && \
+  patch -p1 -i $($(package)_patch_dir)/fast_fixed_dtoa_no_optimize.patch && \
   patch -p1 -i $($(package)_patch_dir)/fix_qpainter_non_determinism.patch && \
   patch -p1 -i $($(package)_patch_dir)/disable_xinerama.patch && \
   patch -p1 -i $($(package)_patch_dir)/dont_use_glibc_getentropy.patch && \
