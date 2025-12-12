@@ -101,7 +101,7 @@ public:
         assert(nPos <= vchData.size());
         size_t nOverwrite = std::min(nSize, vchData.size() - nPos);
         if (nOverwrite) {
-            std::memcpy(vchData.data() + nPos, reinterpret_cast<const uint8_t *>(pch), nOverwrite);
+            std::memcpy(vchData.data() + nPos, pch, nOverwrite);
         }
         if (nOverwrite < nSize) {
             vchData.insert(vchData.end(),
@@ -647,7 +647,7 @@ public:
 
     void read(std::span<std::byte> buf);
     void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
-    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
+    void read(char *pch, size_t nSize) { read(std::as_writable_bytes(std::span{pch, nSize})); }
     /** Implementation detail, only used internally. */
     std::size_t detail_fread(std::span<std::byte> dst);
 
@@ -655,7 +655,7 @@ public:
 
     void write(std::span<const std::byte> buf);
     void write(const std::byte *pbuf, size_t nSize) { write(std::span{pbuf, nSize}); }
-    void write(const char *pch, size_t nSize) { write(reinterpret_cast<const std::byte *>(pch), nSize); }
+    void write(const char *pch, size_t nSize) { write(std::as_bytes(std::span{pch, nSize})); }
 
     template <typename T> CAutoFile &operator<<(const T &obj) {
         // Serialize to this stream
@@ -727,7 +727,7 @@ public:
     //! read a number of bytes
     void read(std::span<std::byte> outBuf);
     void read(std::byte *pbuf, size_t nSize) { read(std::span{pbuf, nSize}); }
-    void read(char *pch, size_t nSize) { read(reinterpret_cast<std::byte *>(pch), nSize); }
+    void read(char *pch, size_t nSize) { read(std::as_writable_bytes(std::span{pch, nSize})); }
 
     //! return the current reading position
     uint64_t GetPos() const { return nReadPos; }
@@ -785,8 +785,8 @@ template <typename S>
 class BufferedReader : public detail::BufferedCommon<S> {
 public:
     //! Requires stream has a lifetime longer than this instance
-    explicit BufferedReader(S stream, size_t size = 1 << 16)
-        : detail::BufferedCommon<S>(std::move(stream), size, size) {}
+    explicit BufferedReader(S streamIn, size_t size = 1 << 16)
+        : detail::BufferedCommon<S>(std::move(streamIn), size, size) {}
 
     void read(std::span<std::byte> dst) {
         if (const size_t available = std::min(dst.size(), this->buf.size() - this->buf_pos)) {
@@ -804,7 +804,7 @@ public:
     }
 
     // Legacy API support
-    void read(char *pch, size_t nSize) { read(std::span{reinterpret_cast<std::byte *>(pch), nSize}); }
+    void read(char *pch, size_t nSize) { read(std::as_writable_bytes(std::span{pch, nSize})); }
 
     template <typename T>
     BufferedReader& operator>>(T&& obj) {
@@ -823,8 +823,8 @@ template <typename S>
 class BufferedWriter : public detail::BufferedCommon<S> {
 public:
     //! Requires stream has a lifetime longer than this instance
-    explicit BufferedWriter(S stream, size_t size = 1 << 16)
-        : detail::BufferedCommon<S>(std::move(stream), size, 0) {}
+    explicit BufferedWriter(S streamIn, size_t size = 1 << 16)
+        : detail::BufferedCommon<S>(std::move(streamIn), size, 0) {}
 
     ~BufferedWriter() { flush(); }
 
@@ -845,7 +845,7 @@ public:
     }
 
     // Legacy API support
-    void write(const char *pch, size_t nSize) { write(std::span{reinterpret_cast<const std::byte *>(pch), nSize}); }
+    void write(const char *pch, size_t nSize) { write(std::as_bytes(std::span{pch, nSize})); }
 
     template <typename T>
     BufferedWriter& operator<<(const T& obj) {
