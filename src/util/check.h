@@ -44,7 +44,7 @@ constexpr T&& inline_assertion_check(LIFETIMEBOUND T&& val, [[maybe_unused]] con
 #else
         false;
 #endif
-    if constexpr (IS_ASSERT || std::is_constant_evaluated() || debugBuild) {
+    if constexpr (IS_ASSERT || debugBuild) {
         if (!val) {
             assertion_fail(file, line, func, assertion);
         }

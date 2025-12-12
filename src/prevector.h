@@ -14,6 +14,11 @@
 #include <iterator>
 #include <type_traits>
 
+#if defined(__GNUC__) && !defined(__clang__) /* Suppress false positive warnings in this file from GCC 14 & 15 */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 /**
  * Implements a drop-in replacement for std::vector<T> which stores up to N
  * elements directly (without heap allocation). The types Size and Diff are used
@@ -426,3 +431,7 @@ public:
 
     const value_type *data() const { return item_ptr(0); }
 };
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
