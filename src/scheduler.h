@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The Bitcoin Core developers
-// Copyright (c) 2017-2023 The Bitcoin developers
+// Copyright (c) 2017-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +11,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <utility>
 
 //
 // Simple class for background tasks that should be run periodically or once
@@ -41,6 +42,10 @@ public:
 
     // Convenience method: call f once deltaMilliSeconds from now
     void scheduleFromNow(Function f, int64_t deltaMilliSeconds);
+    // Helper for above that uses a chrono type
+    void scheduleFromNow(Function f, std::chrono::milliseconds ms) {
+        scheduleFromNow(std::move(f), static_cast<int64_t>(ms.count()));
+    }
 
     // Another convenience method: call p approximately every deltaMilliSeconds
     // forever, starting deltaMilliSeconds from now untill p returns false. To
@@ -48,6 +53,10 @@ public:
     // deltaMilliSeconds later. If you need more accurate scheduling, don't use
     // this method.
     void scheduleEvery(Predicate p, int64_t deltaMilliSeconds);
+    // Helper for above that uses a chrono type
+    void scheduleEvery(Predicate p, std::chrono::milliseconds msec) {
+        scheduleEvery(std::move(p), static_cast<int64_t>(msec.count()));
+    }
 
     /**
      * Mock the scheduler to fast forward in time.

@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
-// Copyright (c) 2021-2023 The Bitcoin developers
+// Copyright (c) 2021-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -15,6 +15,8 @@
 #include <scheduler.h>
 
 #include <atomic>
+#include <iostream>
+#include <optional>
 #include <type_traits>
 
 // Enable BOOST_CHECK_EQUAL for enum class types
@@ -210,3 +212,17 @@ public:
 private:
     const std::string m_reason;
 };
+
+// Make types usable in BOOST_CHECK_* @{
+namespace std {
+template <typename T> requires std::is_enum_v<T>
+inline std::ostream& operator<<(std::ostream& os, const T& e) {
+    return os << static_cast<std::underlying_type_t<T>>(e);
+}
+
+template <typename T>
+inline std::ostream& operator<<(std::ostream& os, const std::optional<T>& v) {
+    return v ? os << *v
+             : os << "std::nullopt";
+}
+} // namespace std

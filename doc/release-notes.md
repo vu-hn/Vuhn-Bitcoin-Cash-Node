@@ -50,6 +50,12 @@ None
     UTXO set statistics for any block in the block chain.
 - The `getblockchaininfo` RPC now has a new key `upgrade_status` which contains details about the next scheduled BCH
   network upgrade and its activation. See the RPC help for `getblockchaininfo` for more details.
+- Non-debug logging to disk (but not to console) is now rate-limited. Each non-debug log message has a quota of 1MiB per
+  hour. (A non-debug message is any log message that would be printed even if `-debug=0` were specified on the command
+  line.) If any non-debug log messages have been suppressed due to this mechanism during any 1-hour period, then all
+  subsequent log messages during that period will be prefixed with a `[*]` to indicate that log message suppression is
+  active and that the debug.log file is potentially incomplete. An exception to this quota rule are the "UpdateTip"
+  messages which are seen when new blocks are added to the blockchain, which are never suppressed or rate-limited.
 
 ## Removed functionality
 
