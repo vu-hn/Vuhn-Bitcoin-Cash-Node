@@ -30,7 +30,11 @@ packages:
 # FIXME: these dependencies are only required to make CMake happy when building
 # native tools. They can be removed when the `NativeExecutable.cmake` gets
 # improved to avoid requiring all the bitcoin-cash-node dependencies.
-- "libboost-all-dev"
+- "libboost-chrono-dev"
+- "libboost-date-time-dev"
+- "libboost-filesystem-dev"
+- "libboost-system-dev"
+- "libboost-test-dev"
 - "libevent-dev"
 - "libgmp-dev"
 - "libssl-dev"
