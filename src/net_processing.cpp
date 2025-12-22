@@ -838,6 +838,12 @@ void PeerLogicValidation::InitializeNode(const Config &config, NodeRef pnode) {
     if (!pnode->fInbound) {
         PushNodeVersion(config, pnode, connman, GetTime());
     }
+    // We only track data usage to enforce peer rate limit rules for the specified node if:
+    // (1) rules exist, and (2) we are regtest *or* the node is not whiltelisted and not maunally added and not local
+    if (!m_peerRateLimitRules.empty() &&
+        (m_is_regtest || (!pnode->HasPermission(PF_NOBAN) && !pnode->m_manual_connection && !pnode->addr.IsLocal()))) {
+        pnode->m_rateTracker = std::make_unique<ClientUsageTracker>(m_peerRateLimitRules);
+    }
 }
 
 void PeerLogicValidation::FinalizeNode(const Config &config, NodeId nodeid,
@@ -1117,7 +1123,8 @@ PeerLogicValidation::PeerLogicValidation(CConnman *connmanIn, BanMan *banman,
                                          CScheduler &scheduler,
                                          bool enable_bip61, bool enable_feefilter)
     : connman(connmanIn), m_banman(banman), deleted(std::make_shared<std::atomic_bool>(false)),
-      m_stale_tip_check_time(0), m_enable_bip61(enable_bip61), m_enable_feefilter(enable_feefilter) {
+      m_stale_tip_check_time(0), m_enable_bip61(enable_bip61), m_enable_feefilter(enable_feefilter),
+      m_is_regtest{gArgs.GetChainName() == CBaseChainParams::REGTEST} {
     // Initialize global variables that cannot be constructed at startup.
     recentRejects.reset(new CRollingBloomFilter(120000, 0.000001));
 
@@ -1265,6 +1272,7 @@ void PeerLogicValidation::UpdatedBlockTip(const CBlockIndex *pindexNew,
     const int nNewHeight = pindexNew->nHeight;
     connman->SetBestHeight(nNewHeight);
 
+    m_cachedLastIBDFlagSeen.store(fInitialDownload, std::memory_order_relaxed);
     SetServiceFlagsIBDCache(!fInitialDownload);
     if (!fInitialDownload) {
         // Find the hashes of all blocks that weren't previously in the best
@@ -1341,6 +1349,15 @@ void PeerLogicValidation::BlockChecked(const CBlock &block,
     if (it != mapBlockSource.end()) {
         mapBlockSource.erase(it);
     }
+}
+
+void PeerLogicValidation::SetPeerRateLimitRules(const std::vector<PeerRateLimitRule> &rules) {
+    m_peerRateLimitRules = rules;
+}
+
+bool PeerLogicValidation::IsPerPeerRateLimitingTemporarilySuppressed() const /* override */ {
+    const int flag = m_cachedLastIBDFlagSeen.load(std::memory_order_relaxed);
+    return flag >= 0 ? flag : IsInitialBlockDownload(); // if flag not set, fall-back to the potentially-slower call
 }
 
 //////////////////////////////////////////////////////////////////////////////

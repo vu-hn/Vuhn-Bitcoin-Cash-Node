@@ -19,6 +19,7 @@
 #include <net_nodeid.h>
 #include <net_permissions.h>
 #include <netaddress.h>
+#include <peerratelimiter.h>
 #include <protocol.h>
 #include <random.h>
 #include <streams.h>
@@ -363,6 +364,9 @@ private:
     void ThreadOpenConnections(std::vector<std::string> connect);
     void ThreadMessageHandler();
     void AcceptConnection(const ListenSocket &hListenSocket);
+    // Disconnect and either discourage or ban the specified node. Whether or not to ban, and the ban time depends on
+    // the given PeerRateLimitRule's configured ban time.
+    void PeerRateLimitViolated(const NodeRef &pnode, const PeerRateLimitRule &rule);
     void DisconnectNodes();
     void NotifyNumConnectionsChanged();
     void InactivityCheck(const NodeRef &pnode) const;
@@ -395,8 +399,9 @@ private:
     void DumpAddresses();
 
     // Network stats
-    void RecordBytesRecv(uint64_t bytes);
-    void RecordBytesSent(uint64_t bytes);
+    // Returns the violated rule if a peer rate limit rule was violated
+    std::optional<PeerRateLimitRule> RecordBytesRecv(uint64_t bytes, const NodeRef &pnode);
+    std::optional<PeerRateLimitRule> RecordBytesSent(uint64_t bytes, const NodeRef &pnode);
 
     // Whether the node should be passed out in ForEach* callbacks
     static bool NodeFullyConnected(const NodeRef &pnode);
@@ -529,6 +534,7 @@ public:
     virtual bool SendMessages(const Config &config, NodeRef pnode, std::atomic<bool> &interrupt) = 0;
     virtual void InitializeNode(const Config &config, NodeRef pnode) = 0;
     virtual void FinalizeNode(const Config &config, NodeId id, bool &update_connection_time) = 0;
+    virtual bool IsPerPeerRateLimitingTemporarilySuppressed() const = 0;
 
 protected:
     /**
@@ -796,6 +802,8 @@ public:
     std::atomic_bool extversionEnabled{false};
     //! Set to true if extversion is the next message expected
     std::atomic_bool extversionExpected{false};
+    //! Optional per-peer rate limits. May be nullptr
+    std::unique_ptr<ClientUsageTracker> m_rateTracker;
 
 protected:
     mapMsgTypeSize mapSendBytesPerMsgType;

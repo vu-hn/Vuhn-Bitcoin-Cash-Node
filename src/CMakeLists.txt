@@ -581,6 +581,7 @@ add_library(server
   node/transaction.cpp
   noui.cpp
   outputtype.cpp
+  peerratelimiter.cpp
   policy/fees.cpp
   policy/policy.cpp
   pow.cpp

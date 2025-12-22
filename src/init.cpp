@@ -831,6 +831,15 @@ void SetupServerArgs() {
                   DEFAULT_MAX_UPLOAD_TARGET),
         ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
 
+    gArgs.AddArg(
+        "-peerratelimit=<data_amount>/<time_window>:<ban_time>",
+        "Per-peer data transfer rate limit rules. Each rule sets what amount of data transfer across what amount of "
+        "time will result in a ban for the specified duration. Multiple rules are accpeted (default: no limit). "
+        "Valid data units: MB, GB, TB, PB (max: 10,000 PB). "
+        "Valid time units: m (minutes), h (hours), d (days), w (weeks) (max: 10,000 weeks). "
+        "Example: -peerratelimit=600GB/3h:1h",
+        ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
+
     g_wallet_init_interface.AddWalletOptions();
 
 #if ENABLE_ZMQ
@@ -2321,6 +2330,20 @@ bool AppInitMain(Config &config, RPCServer &rpcServer,
         g_connman.get(), g_banman.get(), scheduler,
         gArgs.GetBoolArg("-enablebip61", DEFAULT_ENABLE_BIP61), gArgs.GetBoolArg("-feefilter", DEFAULT_FEEFILTER)));
     RegisterValidationInterface(peerLogic.get());
+
+    if (gArgs.IsArgSet("-peerratelimit")) {
+        std::vector<PeerRateLimitRule> rules{};
+        for (const std::string &strRule : gArgs.GetArgs("-peerratelimit")) {
+            PeerRateLimitRule rule(strRule);
+            if (rule.IsValid()) {
+                LogPrintf("Peer rate limit rule loaded: %s\n", rule.GetDescription());
+                rules.push_back(std::move(rule));
+            } else {
+                return InitError(strprintf("Invalid -peerratelimit rule '%s': %s", strRule, rule.GetError()));
+            }
+        }
+        peerLogic->SetPeerRateLimitRules(rules);
+    }
 
     // sanitize comments per BIP-0014, format user agent and check total size
     std::vector<std::string> uacomments;
