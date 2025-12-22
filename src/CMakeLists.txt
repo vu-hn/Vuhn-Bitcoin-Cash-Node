@@ -420,7 +420,6 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   set(Boost_USE_STATIC_LIBS ON)
   set(Boost_USE_STATIC_RUNTIME ON)
-  set(Boost_THREADAPI win32)
 
   find_package(SHLWAPI REQUIRED)
   # We cannot use the imported target here, because cmake will introduce an
@@ -436,12 +435,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
   find_library(WS2_32_LIBRARY NAMES ws2_32)
   target_link_libraries(util ${WS2_32_LIBRARY})
-
-  target_compile_definitions(util PUBLIC BOOST_THREAD_USE_LIB)
 endif()
 
 # Boost packages
-set(BOOST_PACKAGES_REQUIRED chrono filesystem thread)
+set(BOOST_PACKAGES_REQUIRED chrono filesystem)
 
 function(prepend var prefix)
   set(listVar "")
