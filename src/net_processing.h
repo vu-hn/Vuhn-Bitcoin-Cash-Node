@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2020-2023 The Bitcoin developers
+// Copyright (c) 2020-2025 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,6 +8,7 @@
 
 #include <consensus/params.h>
 #include <net.h>
+#include <peerratelimiter.h>
 #include <sync.h>
 #include <txrequest.h>
 #include <validationinterface.h>
@@ -145,6 +146,17 @@ public:
     /// We punish the nodeid(s) in question in that case (if they are still connected).
     void BadDSProofsDetectedFromNodeIds(const std::vector<NodeId> &nodeIds) override;
 
+    /**
+     * Apply the specified peer rate limit rules.
+     */
+    void SetPeerRateLimitRules(const std::vector<PeerRateLimitRule> &rules);
+
+    /**
+     * @brief IsPerPeerRateLimitingTemporarilySuppressed (from NetEventsInterface)
+     * @return true if we are in IBD, false otherwise
+     */
+    bool IsPerPeerRateLimitingTemporarilySuppressed() const override;
+
 private:
     //! Next time to check for stale tip
     int64_t m_stale_tip_check_time;
@@ -157,6 +169,13 @@ private:
 
     /** Enable sending feefilter messages to peers. */
     const bool m_enable_feefilter;
+
+    const bool m_is_regtest; ///< True if we are a regtest node
+    std::vector<PeerRateLimitRule> m_peerRateLimitRules; ///< If not empty, per-peer traffic rate limiting is active
+     //! Cached value from the last time this->UpdatedBlockTip() was called: the last fInitialDownload param seen.
+     //! If negative: is unset (UpdatedBlockTip() was never called). If non-negative, interpreted as a boolean as the
+     //! last fInitialDownload flag seen.
+    std::atomic_int m_cachedLastIBDFlagSeen{-1};
 };
 
 struct CNodeStateStats {

@@ -1135,6 +1135,22 @@ bool CConnman::AddConnection(const std::string& address) {
     return true;
 }
 
+void CConnman::PeerRateLimitViolated(const NodeRef &pnode, const PeerRateLimitRule &rule) {
+    uint32_t banMinutes = rule.GetBanMinutes();
+    std::string banString = "Disconnected (without a ban or discouragement)";
+    if (m_banman) {
+        if (banMinutes > 0) {
+            m_banman->Ban(pnode->addr, banMinutes * 60, false /*since_unix_epoch*/, false /*save_to_disk*/);
+            banString = rule.GetBanMessage();
+        } else {
+            m_banman->Discourage(pnode->addr);
+            banString = "Disconnected and discouraged (without a ban)";
+        }
+    }
+    pnode->fDisconnect = true;
+    LogPrintf("Peer rate limit rule '%s' violated by %s. %s.\n", rule.GetName(), pnode->addr.ToString(), banString);
+}
+
 void CConnman::DisconnectNodes() {
     {
         LOCK(cs_mNodes);
@@ -1412,6 +1428,9 @@ void CConnman::SocketHandler()
         }
     }
 
+    // Nodes to ban and the rule they violated
+    std::vector<std::pair<NodeRef, PeerRateLimitRule>> nodesToBan;
+
     //
     // Service each socket
     //
@@ -1461,7 +1480,9 @@ void CConnman::SocketHandler()
                 if (!pnode->ReceiveMsgBytes(*config, pchBuf, nBytes, notify)) {
                     pnode->CloseSocketDisconnect();
                 }
-                RecordBytesRecv(nBytes);
+                if (auto rule = RecordBytesRecv(nBytes, pnode)) {
+                    nodesToBan.emplace_back(pnode, rule.value());
+                }
                 if (notify) {
                     size_t nSizeAdded = 0;
                     auto it(pnode->vRecvMsg.begin());
@@ -1510,11 +1531,18 @@ void CConnman::SocketHandler()
             LOCK(pnode->cs_vSend);
             size_t nBytes = SocketSendData(pnode);
             if (nBytes) {
-                RecordBytesSent(nBytes);
+                if (auto rule = RecordBytesSent(nBytes, pnode)) {
+                    nodesToBan.emplace_back(pnode, rule.value());
+                }
             }
         }
 
         InactivityCheck(pnode);
+    }
+
+    // Process the node ban list
+    for (const auto& [pnode, rule] : nodesToBan) {
+        PeerRateLimitViolated(pnode, rule);
     }
 }
 
@@ -2656,24 +2684,37 @@ bool CConnman::DisconnectNode(NodeId id) {
     }, /*fullyConnectedOnly=*/false);
 }
 
-void CConnman::RecordBytesRecv(uint64_t bytes) {
-    LOCK(cs_totalBytesRecv);
-    nTotalBytesRecv += bytes;
+std::optional<PeerRateLimitRule> CConnman::RecordBytesRecv(uint64_t bytes, const NodeRef &pnode) {
+    {
+        LOCK(cs_totalBytesRecv);
+        nTotalBytesRecv += bytes;
+    }
+    if (pnode->m_rateTracker && !m_msgproc->IsPerPeerRateLimitingTemporarilySuppressed()) {
+        return pnode->m_rateTracker->RecordTransfer(bytes, GetTime());
+    }
+    return std::nullopt;
 }
 
-void CConnman::RecordBytesSent(uint64_t bytes) {
-    LOCK(cs_totalBytesSent);
-    nTotalBytesSent += bytes;
+std::optional<PeerRateLimitRule> CConnman::RecordBytesSent(uint64_t bytes, const NodeRef &pnode) {
+    uint64_t now;
+    {
+        LOCK(cs_totalBytesSent);
+        nTotalBytesSent += bytes;
 
-    uint64_t now = GetTime();
-    if (nMaxOutboundCycleStartTime + nMaxOutboundTimeframe < now) {
-        // timeframe expired, reset cycle
-        nMaxOutboundCycleStartTime = now;
-        nMaxOutboundTotalBytesSentInCycle = 0;
+        now = GetTime();
+        if (nMaxOutboundCycleStartTime + nMaxOutboundTimeframe < now) {
+            // timeframe expired, reset cycle
+            nMaxOutboundCycleStartTime = now;
+            nMaxOutboundTotalBytesSentInCycle = 0;
+        }
+
+        // TODO, exclude whitebind peers
+        nMaxOutboundTotalBytesSentInCycle += bytes;
     }
-
-    // TODO, exclude whitebind peers
-    nMaxOutboundTotalBytesSentInCycle += bytes;
+    if (pnode->m_rateTracker && !m_msgproc->IsPerPeerRateLimitingTemporarilySuppressed()) {
+        return pnode->m_rateTracker->RecordTransfer(bytes, now);
+    }
+    return std::nullopt;
 }
 
 void CConnman::SetMaxOutboundTarget(uint64_t limit) {
@@ -2862,7 +2903,9 @@ void CConnman::PushMessage(const NodeRef &pnode, CSerializedNetMsg &&msg) {
         }
     }
     if (nBytesSent) {
-        RecordBytesSent(nBytesSent);
+        if (auto rule = RecordBytesSent(nBytesSent, pnode)) {
+            PeerRateLimitViolated(pnode, rule.value());
+        }
     }
 }
 
