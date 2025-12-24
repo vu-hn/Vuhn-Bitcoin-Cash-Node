@@ -1,6 +1,6 @@
-# Release Notes for Bitcoin Cash Node version 28.0.2
+# Release Notes for Bitcoin Cash Node version 29.0.0
 
-Bitcoin Cash Node version 28.0.2 is now available from:
+Bitcoin Cash Node version 29.0.0 is now available from:
 
   <https://bitcoincashnode.org>
 
@@ -10,7 +10,7 @@ This release of Bitcoin Cash Node (BCHN) is a patch release.
 
 ## Usage recommendations
 
-Users who are running v28.0.1 or older are encouraged to upgrade to v28.0.2.
+Users who are running v28.0.1 or older are encouraged to upgrade to v29.0.0.
 
 ## Network changes
 
@@ -83,7 +83,7 @@ None
 
 ## Regressions
 
-Bitcoin Cash Node 28.0.2 does not introduce any known regressions as compared to 28.0.1.
+Bitcoin Cash Node 29.0.0 does not introduce any known regressions as compared to 28.0.1.
 
 ## Limitations
 
