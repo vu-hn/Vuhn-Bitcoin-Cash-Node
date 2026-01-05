@@ -15,8 +15,6 @@ NSEEDS = 512
 
 MAX_SEEDS_PER_ASN = 2
 
-MIN_BLOCKS = 540000
-
 # These are hosts that have been observed to be behaving strangely (e.g.
 # aggressively connecting to every node).
 SUSPICIOUS_HOSTS = {
@@ -189,9 +187,6 @@ def main():
 
     # Skip entries from suspicious hosts.
     ips = [ip for ip in ips if ip['ip'] not in SUSPICIOUS_HOSTS]
-
-    # Enforce minimal number of blocks.
-    ips = [ip for ip in ips if ip['blocks'] >= MIN_BLOCKS]
 
     # Require service bit 1.
     ips = [ip for ip in ips if (ip['service'] & 1) == 1]
