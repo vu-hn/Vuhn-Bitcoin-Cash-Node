@@ -318,6 +318,7 @@ public:
                 // Upgrade 11; May 15, 2025 (MTP time >= 1747310400), first block mined with upgrade rules: 898374
                 {898374, BlockHash::fromHex("00000000000000000157a0a3dcdc80f1acd809648d238c1e893b26247091b3b4")},
                 {901000, BlockHash::fromHex("000000000000000001eda4b93cfe9bc790906f2358fc5643ff335da5e7bbae5d")},
+                {932228, BlockHash::fromHex("0000000000000000005a48a20e13f038be389952014373478b6a6a90d40e4680")},
             }};
 
         // Data as of block
@@ -536,6 +537,7 @@ public:
 
                 // Upgrade 11; May 15, 2025 (MTP time >= 1747310400), first block mined with upgrade rules: 1658050
                 {1658050, BlockHash::fromHex("0000000015d90bbd6deeb63cf86dc1f794d76c697d2ea86a42158c8003da8c5e")},
+                {1689348, BlockHash::fromHex("000000001935f758281aa60414a1218dcd09b4dc6b7ad0be2a3cddbcd38ff265")},
             }};
 
         // Data as of block
@@ -726,6 +728,7 @@ public:
 
                 // Upgrade 11; May 15, 2025 (MTP time >= 1747310400), first block mined with upgrade rules: 253319
                 {253319, BlockHash::fromHex("00000000004605937a919cf6f636b68e8137b5cb0226ddbc9e00f386ef02999b")},
+                {277407, BlockHash::fromHex("00000000fd6af07e5c4618de0cc36796f9470620eb4610584d9011b9f41d3400")},
             }};
 
         // Data as of block
@@ -1077,6 +1080,9 @@ public:
                 {228000, BlockHash::fromHex("00000000144b00db5736b33bd572b3a3a52aa9b4c26ba59fc212aeb68a9b7a20")},
                 {232000, BlockHash::fromHex("0000000017d92f88ed2c81885c57f999184860a042250510be06b3edd12e0dc5")},
                 {255000, BlockHash::fromHex("000000008654e310c090d6846459500c3a6531044fa9339865865575375db624")},
+
+                // A block after Upgrade 12 activated (Nov. 15, 2025), first block after upgrade: 279792
+                {284827, BlockHash::fromHex("000000007af65a6e8853f858b3f2a8e7edabe41e6264410276705b324267d7d8")},
             }};
 
         // Data as of block
