@@ -48,8 +48,6 @@ network.
 - Two new keys have been added to the results dictionary of the `getmempoolinfo` RPC method:
   - `permitbaremultisig` (true or false) indicates the node's `-permitbaremultisig` app-global setting.
   - `maxdatacarriersize` (numeric) indicates the node's `-datacarriersize=<n>` app-global setting.
-    and if the input is spending a P2SH prevout, then additionally there will a `redeemScript` object having its own `byteCodePattern`
-    and additionally having a `p2shType` key.
 - A new CLI argument `-peerratelimit` has been added, in order to optionally limit per-peer data transfer usage. This
   facility is off by default. See the built-in help for more information (`bitcoind --help`).
 
