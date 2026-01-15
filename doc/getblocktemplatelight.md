@@ -289,7 +289,7 @@ merkle_root = hashes[0]
 - [1] [BIP22: getblocktemplate - Fundamentals](https://github.com/bitcoin/bips/blob/master/bip-0022.mediawiki/)
 - [2] [BIP23: getblocktemplate - Pooled Mining](https://github.com/bitcoin/bips/blob/master/bip-0023.mediawiki/)
 - [3] [https://github.com/btccom/bitcoin-abc-1/commit/e87774c8ee724a0e9ecbc289236920ea1aa04a83](https://github.com/btccom/bitcoin-abc-1/commit/e87774c8ee724a0e9ecbc289236920ea1aa04a83)
-- [4] [src/rpc/mining.cpp](../src/rpc/mining.cpp), see `MakeMerkleBranch` function
+- [4] [src/rpc/mining.cpp](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node/-/blob/master/src/rpc/mining.cpp?ref_type=heads#L1207), see `MakeMerkleBranch` function
 - [5] [https://reference.cash/protocol/blockchain/block/block-header](https://reference.cash/protocol/blockchain/block/block-header)
 - [6] [https://reference.cash/protocol/p2p/compact__int/](https://reference.cash/protocol/p2p/compact__int/)
 - [7] [https://reference.cash/protocol/blockchain/block/#coinbase-transaction](https://reference.cash/protocol/blockchain/block/#coinbase-transaction)
