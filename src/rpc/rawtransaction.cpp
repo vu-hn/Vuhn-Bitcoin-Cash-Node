@@ -245,6 +245,7 @@ static UniValue getrawtransaction(const Config &config,
             "  \"locktime\" : ttt,                  (numeric) The lock time\n"
             "  \"vin\" : [                          (array of json objects)\n"
             "     {\n"
+            "       \"coinbase\": \"hex\",            (string, optional) The coinbase value (only if coinbase transaction)\n"
             "       \"txid\": \"id\",                 (string) The transaction id\n"
             "       \"vout\": n,                    (numeric)\n"
             "       \"scriptSig\": {                (json object) The script\n"
