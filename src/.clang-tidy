@@ -1,2 +1,71 @@
-Checks:      -*,boost-use-to-string,readability-braces-around-statements
+# =============================================================================
+# VBCHN clang-tidy configuration
+#
+# Minimum clang-tidy version: 11 (see CONTRIBUTING.md)
+# Third-party dirs (secp256k1, leveldb, univalue) have their own .clang-tidy
+# files that disable all checks — they are unaffected by this config.
+#
+# Run manually:  clang-tidy <file.cpp> -p build/compile_commands.json
+# Run via build:  cmake -DENABLE_CLANG_TIDY=ON .. && ninja
+# =============================================================================
+
+Checks: >-
+  -*,
+  boost-use-to-string,
+
+  readability-braces-around-statements,
+  readability-function-size,
+  readability-function-cognitive-complexity,
+  readability-else-after-return,
+  readability-misleading-indentation,
+  readability-redundant-declaration,
+  readability-simplify-boolean-expr,
+
+  modernize-use-override,
+  modernize-use-nullptr,
+
+  bugprone-use-after-move,
+  bugprone-sizeof-expression,
+  bugprone-string-constructor,
+  bugprone-macro-parentheses,
+
+  performance-unnecessary-copy-initialization,
+  performance-for-range-copy,
+
+CheckOptions:
+  # ---------------------------------------------------------------------------
+  # Structural limits — the primary goal of this config expansion.
+  # These thresholds are intentionally generous for the initial rollout on a
+  # legacy codebase (184K lines). Tighten over time as files are refactored.
+  # ---------------------------------------------------------------------------
+
+  # Maximum lines in a single function body (excluding comments/blanks).
+  - key:   readability-function-size.LineThreshold
+    value: '200'
+
+  # Maximum statements in a single function.
+  - key:   readability-function-size.StatementThreshold
+    value: '150'
+
+  # Maximum parameters for a single function.
+  - key:   readability-function-size.ParameterThreshold
+    value: '8'
+
+  # Maximum nesting depth (if/for/while/switch).
+  - key:   readability-function-size.NestingThreshold
+    value: '5'
+
+  # Maximum branches (if/else/case) in a single function.
+  - key:   readability-function-size.BranchThreshold
+    value: '80'
+
+  # Cognitive complexity threshold per function.
+  # Industry standard is 25; we start at 50 for legacy compatibility.
+  - key:   readability-function-cognitive-complexity.Threshold
+    value: '50'
+
+  # Allow early-return else-after-return warnings even in short if blocks.
+  - key:   readability-else-after-return.WarnOnUnfixable
+    value: 'false'
+
 FormatStyle: file
