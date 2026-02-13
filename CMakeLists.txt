@@ -8,14 +8,14 @@ set(CMAKE_USER_MAKE_RULES_OVERRIDE
 	"${CMAKE_SOURCE_DIR}/cmake/modules/OverrideInitFlags.cmake"
 )
 
-project(bitcoin-cash-node
+project(vuhn-bitcoin-cash-node
 	VERSION 29.0.1
-	DESCRIPTION "Bitcoin Cash Node is a full node implementation of the Bitcoin Cash protocol."
-	HOMEPAGE_URL "https://www.bitcoincashnode.org"
+	DESCRIPTION "Vuhn Bitcoin Cash Node is a full node implementation of the Bitcoin Cash protocol."
+	HOMEPAGE_URL "https://www.vuhnbitcoincashnode.org"
 )
 
 # Package information
-set(PACKAGE_NAME "Bitcoin Cash Node")
+set(PACKAGE_NAME "Vuhn Bitcoin Cash Node")
 
 # Copyright
 set(COPYRIGHT_YEAR 2025)

@@ -31,12 +31,12 @@ the `cmake` command line.
 ## Building
 
 Once you have installed the required dependencies (see sections above), you can
-build Bitcoin Cash Node as such:
+build Vuhn Bitcoin Cash Node as such:
 
 First fetch the code (if you haven't done so already).
 
 ```sh
-git clone https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node.git
+git clone https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node.git
 ```
 
 Change to the BCN directory, make `build` dir, and change to that directory

@@ -62,7 +62,7 @@ It will be `1` if the input script correctly spends the previous output `scriptP
 
 ### Example Implementations
 
-- [Bitcoin Cash Node (BCHN)](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node/-/blob/master/src/script/bitcoinconsensus.h)
+- [Vuhn Bitcoin Cash Node (BCHN)](https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node/-/blob/master/src/script/bitcoinconsensus.h)
 - [Bitcoin Unlimited (BUCash)](https://github.com/BitcoinUnlimited/BitcoinUnlimited/blob/release/src/script/bitcoinconsensus.h)
 
 ### Historic Example Implementations in Bitcoin (pre-dating Bitcoin Cash)

@@ -37,6 +37,54 @@ To add more `bitcoin-seeder` tests, add `BOOST_AUTO_TEST_CASE` functions to the
 existing .cpp files in the `src/seeder/test/` directory or add new .cpp files
 that implement new `BOOST_AUTO_TEST_SUITE` sections.
 
+## Running unit tests for Windows cross-compiled builds
+
+When cross-compiling for Windows from WSL2 (Ubuntu 24.04), the `ninja check`
+target will not work because it attempts to execute .exe files on Linux.
+Instead, build the test executable and run it on Windows directly.
+
+### Building the test executable
+
+From the WSL2 build directory:
+
+```bash
+cd ~/vuhn-bitcoin-cash-node/build
+ninja test_bitcoin.exe
+```
+
+This produces `src/test/test_bitcoin.exe` in the build directory.
+
+### Copying to Windows
+
+The test executable requires `libbitcoinconsensus-29.dll` from the build.
+Copy both files to a Windows directory:
+
+```bash
+cp src/test/test_bitcoin.exe /mnt/f/ClaudeProjects/cryptocurrency/vbchn-build-output/
+cp src/libbitcoinconsensus-29.dll /mnt/f/ClaudeProjects/cryptocurrency/vbchn-build-output/
+```
+
+### Running on Windows
+
+From a Windows terminal (Git Bash, PowerShell, or CMD):
+
+```
+# Run all tests with suite-level output
+test_bitcoin.exe --log_level=test_suite
+
+# Run all tests silently (only failures shown)
+test_bitcoin.exe
+
+# Run a specific test suite
+test_bitcoin.exe --run_test=net_tests
+
+# Run a specific test case
+test_bitcoin.exe --run_test=net_tests/test_userAgent
+```
+
+The test executable runs 679 test cases and takes approximately 5 minutes on
+a typical machine. Exit code 0 means all tests passed.
+
 ## Running individual tests
 
 `test_bitcoin` has some built-in command-line arguments; for

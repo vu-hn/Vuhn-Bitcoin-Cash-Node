@@ -80,12 +80,12 @@ pkg install help2man
 If not installed, manpage generation should be disabled by passing `-DENABLE_MAN=OFF`
 to `cmake`.
 
-## Building Bitcoin Cash Node
+## Building Vuhn Bitcoin Cash Node
 
 Download the source code:
 
 ```bash
-git clone https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node.git
+git clone https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node.git
 cd bitcoin-cash-node/
 ```
 

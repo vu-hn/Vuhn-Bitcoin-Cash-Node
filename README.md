@@ -1,12 +1,10 @@
-Bitcoin Cash Node
-=================
+Vuhn Bitcoin Cash Node
+======================
 
-The goal of Bitcoin Cash Node is to create sound money that is usable by everyone
-in the world. We believe this is a civilization-changing technology which will
-dramatically increase human flourishing, freedom, and prosperity. The project
-aims to achieve this goal by implementing a series of optimizations and
-protocol upgrades that will enable peer-to-peer digital cash to scale many
-orders of magnitude beyond current limits.
+Vuhn Bitcoin Cash Node (VBCHN) is a fork of [Bitcoin Cash Node](https://www.bitcoincashnode.org),
+a full node implementation of the Bitcoin Cash protocol. It is a descendant of
+the [Bitcoin Core](https://bitcoincore.org) and [Bitcoin ABC](https://www.bitcoinabc.org)
+software projects.
 
 What is Bitcoin Cash?
 ---------------------
@@ -19,18 +17,10 @@ a separate currency from the version supported by Bitcoin Core when the two
 split on August 1, 2017. Bitcoin Cash and the Bitcoin Core version of Bitcoin
 share the same transaction history up until the split.
 
-What is Bitcoin Cash Node?
---------------------------
-
-[Bitcoin Cash Node](https://www.bitcoincashnode.org) is the name of open-source
-software which enables the use of Bitcoin Cash. It is a descendant of the
-[Bitcoin Core](https://bitcoincore.org) and [Bitcoin ABC](https://www.bitcoinabc.org)
-software projects.
-
 License
 -------
 
-Bitcoin Cash Node is released under the terms of the MIT license. See
+Vuhn Bitcoin Cash Node is released under the terms of the MIT license. See
 [COPYING](COPYING) for more information or see
 [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
 
@@ -42,12 +32,9 @@ Bernard.
 Development Process
 -------------------
 
-Bitcoin Cash Node development takes place at [https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node)
+Vuhn Bitcoin Cash Node development takes place at [https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node](https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node)
 
-There is also a source-only mirror of Bitcoin Cash Node on Github at [https://github.com/bitcoin-cash-node/bitcoin-cash-node](https://github.com/bitcoin-cash-node/bitcoin-cash-node).
-
-If you would like to contribute, please read our [contribution guide](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node/-/blob/master/CONTRIBUTING.md) and feel
-free to contact us directly at [bitcoincashnode.slack.com](https://bitcoincashnode.slack.com) or [t.me/bitcoincashnode](https://t.me/bitcoincashnode).
+Upstream Bitcoin Cash Node: [https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node)
 
 Disclosure Policy
 -----------------

@@ -30,15 +30,15 @@ To build with Qt 5 you need the following packages installed:
 You can do without the `qrencode-devel` package, just pass `-DENABLE_QRCODE=OFF`
 on the cmake command line.
 
-## Building Bitcoin Cash Node
+## Building Vuhn Bitcoin Cash Node
 
 Once you have installed the required dependencies (see sections above), you can
-build Bitcoin Cash Node as such:
+build Vuhn Bitcoin Cash Node as such:
 
 First fetch the code (if you haven't done so already).
 
 ```bash
-git clone https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node.git
+git clone https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node.git
 ```
 
 Change to the BCN directory, make `build` dir, and change to that directory

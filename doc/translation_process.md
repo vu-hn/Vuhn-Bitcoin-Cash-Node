@@ -1,6 +1,6 @@
 # Translations
 
-The Bitcoin Cash Node graphical user interface is translated on Crowdin:
+The Vuhn Bitcoin Cash Node graphical user interface is translated on Crowdin:
 
   <https://crowdin.com/project/bitcoin-cash-node>
 

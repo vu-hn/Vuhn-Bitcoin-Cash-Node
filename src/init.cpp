@@ -1298,8 +1298,8 @@ void SetupServerArgs() {
 }
 
 std::string LicenseInfo() {
-    constexpr auto URL_SOURCE_CODE = "<https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node>";
-    constexpr auto URL_WEBSITE = "<https://bitcoincashnode.org>";
+    constexpr auto URL_SOURCE_CODE = "<https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node>";
+    constexpr auto URL_WEBSITE = "<https://vuhnbitcoincashnode.org>";
 
     return CopyrightHolders(strprintf(_("Copyright (C) %i-%i"), 2009, COPYRIGHT_YEAR) + " ") +
            "\n\n" +

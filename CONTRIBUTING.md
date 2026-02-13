@@ -1,55 +1,25 @@
-# Contributing to Bitcoin Cash Node
+# Contributing to Vuhn Bitcoin Cash Node
 
-The Bitcoin Cash Node project welcomes contributors!
+The Vuhn Bitcoin Cash Node project welcomes contributors!
 
 This guide is intended to help developers and others contribute effectively
-to Bitcoin Cash Node.
+to Vuhn Bitcoin Cash Node.
 
 ## Communicating with the project
 
-To get in contact with the Bitcoin Cash Node project, we monitor a number
-of resources.
+Our main development repository is located at
 
-Our main development repository is currently located at
-
-[https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node)
+[https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node](https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node)
 
 This features the project code, an issue tracker and facilities to see
-project progress and activities, even in detailed form such as individual
-change requests.
+project progress and activities.
 
 Users are free to submit issues or comment on existing ones - all that is
-needed is a GitLab account which can be freely registered (use the 'Register'
-button on the GitLab page).
+needed is a GitHub account.
 
-In addition to the project repository, we have various other channels where
-project contributors can be reached.
+## Development Philosophy
 
-Our main chat is at <https://bitcoincashnode.slack.com>, where we conduct
-our main development and interactive support for users of our node.
-
-Other social media resources such as our Telegram and Twitter are linked
-from the project website at
-
-[https://bitcoincashnode.org](https://bitcoincashnode.org)
-
-On all our channels, we seek to facilitate development of Bitcoin Cash Node,
-and to welcome and support people who wish to participate.
-
-Please visit our channels to
-
-- Introduce yourself to other Bitcoin Cash Node contributors
-- Get help with your development environment
-- Discuss how to complete a patch.
-
-It is not for:
-
-- Market discussion
-- Non-constructive criticism
-
-## Bitcoin Cash Node Development Philosophy
-
-Bitcoin Cash Node aims for fast iteration and continuous integration.
+Vuhn Bitcoin Cash Node aims for fast iteration and continuous integration.
 
 This means that there should be quick turnaround for patches to be proposed,
 reviewed, and committed. Changes should not sit in a queue for long.
@@ -171,7 +141,7 @@ when they have a good reason to do so.
 - Don't be afraid to say "NO", or "MAYBE, but...", if a change seems
   undesirable or if you otherwise have reservations/caveats/etc.
 
-Here are some handy links for development practices aligned with Bitcoin Cash Node:
+Here are some handy links for development practices aligned with Vuhn Bitcoin Cash Node:
 
 - [BCHN GitLab development working rules and guidelines](doc/bchn-gitlab-usage-rules-and-guidelines.md)
 - [Developer Notes](doc/developer-notes.md)
@@ -186,9 +156,9 @@ Here are some handy links for development practices aligned with Bitcoin Cash No
 - [Good Work, Great Work, and Right Work](https://forum.dlang.org/post/q7u6g1$94p$1@digitalmars.com)
 - [Accelerate: The Science of Lean Software and DevOps](https://www.amazon.com/Accelerate-Software-Performing-Technology-Organizations/dp/1942788339)
 
-## Getting set up with the Bitcoin Cash Node Repository
+## Getting set up with the Repository
 
-1. Create an account at [https://gitlab.com](https://gitlab.com) if you don't have
+1. Create an account at [https://github.com](https://github.com) if you don't have
    one yet
 2. Install Git on your machine
 
@@ -196,65 +166,29 @@ Here are some handy links for development practices aligned with Bitcoin Cash No
     - To install these packages on Debian or Ubuntu,
       type: `sudo apt-get install git`
 
-3. If you do not already have an SSH key set up, follow these steps:
+3. Fork the Vuhn Bitcoin Cash Node repository for your work
 
-    - Type: `ssh-keygen -t rsa -b 4096 -C "your_email@example.com"`
-    - Enter a file in which to save the key
-      (/home/*username*/.ssh/id_rsa): [Press enter]
-    - *NOTE: the path in the message shown above is specific to UNIX-like systems
-      and may differ if you run on other platforms.*
+    - Visit [https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node](https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node)
+    - Click the 'Fork' button on the top right.
 
-4. Upload your SSH public key to GitLab
-
-    - Go to: [https://gitlab.com](https://gitlab.com), log in
-    - Under "User Settings", "SSH Keys", add your public key
-    - Paste contents from: `$HOME/.ssh/id_rsa.pub`
-
-5. Create a personal fork of the Bitcoin Cash Node repository for your work
-
-    - Sign into GitLab under your account, then visit the project at [https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node)
-    - Click the 'Fork' button on the top right, and choose to fork the project to
-      your personal GitLab space.
-
-6. Clone your personal work repository to your local machine:
+4. Clone your personal work repository to your local machine:
 
     ```
-    git clone git@gitlab.com:username/bitcoin-cash-node.git
+    git clone git@github.com:username/Vuhn-Bitcoin-Cash-Node.git
     ```
 
-7. Set your checked out copy's upstream to our main project:
+5. Set your checked out copy's upstream to our main project:
 
     ```
-    git remote add upstream https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node.git
+    git remote add upstream https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node.git
     ```
 
-8. You may want to add the `mreq` alias to your `.git/config`:
+6. Code formatting tools
 
-    ```
-    [alias]
-    mreq = !sh -c 'git fetch $1 merge-requests/$2/head:mr-$1-$2 && git checkout mr-$1-$2' -
-    ```
-
-    This `mreq` alias can be used to easily check out Merge Requests from our
-    main repository if you intend to test them or work on them.
-    Example:
-
-    ```
-    $ git mreq upstream 93
-    ```
-
-    This will checkout `merge-requests/93/head` and put you in a branch called `mr-origin-93`.
-    You can then proceed to test the changes proposed by that merge request.
-
-9. Code formatting tools
-
-    During submission of patches, our GitLab CI process may refuse code that
-    is not styled according to our coding guidelines.
-
-    To enforce Bitcoin Cash Node codeformatting standards, you may need to
+    To enforce Vuhn Bitcoin Cash Node codeformatting standards, you may need to
     install `clang-format-11`, `clang-tidy` (version >=11), `autopep8`, `flake8`,
     `phpcs` and `shellcheck` on your system to format your code before submission
-    as a Merge Request.
+    as a Pull Request.
 
     To install `clang-format-11` and `clang-tidy` on Ubuntu (>= 18.04+updates)
     or Debian (>= 10):
@@ -296,7 +230,7 @@ Here are some handy links for development practices aligned with Bitcoin Cash No
 
     - [Publishing documentation](doc/publishing-documentation.md)
 
-## Working with The Bitcoin Cash Node Repository
+## Working with The Repository
 
 A typical workflow would be:
 
@@ -342,16 +276,7 @@ please contact our developers and they will help you decide.
 ## What to work on
 
 If you are looking for a useful task to contribute to the project, a good place
-to start is the list of issues at [https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node/-/issues](https://gitlab.com/bitcoin-cash-node/bitcoin-cash-node/-/issues)
-
-Look for issues marked with a label 'good-first-issue'.
-
-## Bitcoin Cash Node documentation
-
-Find the complete project documentation at [https://docs.bitcoincashnode.org/](https://docs.bitcoincashnode.org/).
-The documentation here is published automatically as part of the development
-release pipeline. See [Publishing documentation](doc/publishing-documentation.md)
-for further details and especially if you plan to work on the documentation.
+to start is the list of issues at [https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node/issues](https://github.com/vu-hn/Vuhn-Bitcoin-Cash-Node/issues)
 
 ## Copyright
 

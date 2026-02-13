@@ -49,10 +49,10 @@ static const int MAX_URI_LENGTH = 255;
 /* Number of frames in spinner animation */
 #define SPINNER_FRAMES 36
 
-#define QAPP_ORG_NAME "BitcoinCashNode"
-#define QAPP_ORG_DOMAIN "bitcoincashnode.org"
-#define QAPP_APP_NAME_DEFAULT "BitcoinCashNode-Qt"
-#define QAPP_APP_NAME_TESTNET "BitcoinCashNode-Qt-testnet"
-#define QAPP_APP_NAME_TESTNET4 "BitcoinCashNode-Qt-testnet4"
-#define QAPP_APP_NAME_SCALENET "BitcoinCashNode-Qt-scalenet"
-#define QAPP_APP_NAME_CHIPNET "BitcoinCashNode-Qt-chipnet"
+#define QAPP_ORG_NAME "VuhnBitcoinCashNode"
+#define QAPP_ORG_DOMAIN "vuhnbitcoincashnode.org"
+#define QAPP_APP_NAME_DEFAULT "VuhnBitcoinCashNode-Qt"
+#define QAPP_APP_NAME_TESTNET "VuhnBitcoinCashNode-Qt-testnet"
+#define QAPP_APP_NAME_TESTNET4 "VuhnBitcoinCashNode-Qt-testnet4"
+#define QAPP_APP_NAME_SCALENET "VuhnBitcoinCashNode-Qt-scalenet"
+#define QAPP_APP_NAME_CHIPNET "VuhnBitcoinCashNode-Qt-chipnet"
