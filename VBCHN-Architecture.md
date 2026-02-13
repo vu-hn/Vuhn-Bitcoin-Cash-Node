@@ -1162,6 +1162,42 @@ extract `CNode` into `net_node.h`.
 `wallet/wallet.cpp` (4,303 lines) — split CWallet methods by concern (coin selection,
 signing, sync). `init.cpp` (2,696 lines) — split startup steps into modules.
 
+### clang-tidy Baseline (10 Largest Files)
+
+Run with clang-tidy 18.1.3 against the expanded `src/.clang-tidy` config.
+Structural checks: max 200 lines, 150 statements, 5 nesting levels, 80 branches
+per function; cognitive complexity threshold 50.
+
+#### Warning Totals by Check (134 total)
+
+| Check                                      | Count | What It Flags                                      |
+|--------------------------------------------|-------|----------------------------------------------------|
+| `readability-function-size`                | 40    | Functions exceeding size/nesting/branch thresholds  |
+| `readability-braces-around-statements`     | 36    | Missing `{}` on single-line if/for/while            |
+| `readability-else-after-return`            | 26    | Unnecessary else after return                       |
+| `readability-function-cognitive-complexity` | 18    | Functions exceeding cognitive complexity of 50       |
+| `readability-simplify-boolean-expr`        | 7     | `if (x == true)` patterns                           |
+| `modernize-use-nullptr`                    | 1     | NULL/0 used instead of nullptr                      |
+
+#### Warnings by File
+
+| File                     | Total | Oversized Fns | High Complexity | Braces | Else-after-return |
+|--------------------------|-------|---------------|-----------------|--------|-------------------|
+| `validation.cpp`         | 29    | 12            | 6               | 6      | 4                 |
+| `net_processing.cpp`     | 28    | 7             | 6               | 8      | 6                 |
+| `script/interpreter.cpp` | 16    | 1             | 1               | 9      | 2                 |
+| `net.cpp`                | 14    | 5             | 1               | 7      | 0                 |
+| `init.cpp`               | 13    | 3             | 2               | 0      | 6                 |
+| `wallet/wallet.cpp`      | 9     | 4             | 2               | 0      | 2                 |
+| `rpc/blockchain.cpp`     | 9     | 2             | 0               | 3      | 4                 |
+| `txmempool.cpp`          | 7     | 0             | 0               | 6      | 1                 |
+| `wallet/rpcwallet.cpp`   | 6     | 1             | 0               | 2      | 3                 |
+| `rpc/rawtransaction.cpp`  | 3     | 3             | 0               | 0      | 0                 |
+
+Key findings: **40 oversized functions** and **18 high-complexity functions** across
+the 10 largest files. `validation.cpp` and `net_processing.cpp` are the worst
+offenders by a wide margin with 12 and 7 oversized functions respectively.
+
 ---
 
 *Document generated from VBCHN v29.0.1 source analysis — February 2026*
