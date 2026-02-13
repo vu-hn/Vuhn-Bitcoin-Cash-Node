@@ -10,12 +10,12 @@ These dependencies are required:
 | --- | --- | --- | --- | --- | --- |--- | --- |
 | Berkeley DB | [5.3.28](http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/downloads/index.html) | 5.3 | No |  |  | Wallet storage | Only needed when wallet enabled  |
 | Boost | [1.77.0](http://www.boost.org/users/download/) | 1.73.0 | No |  |  |  Utility          | Library for threading, data structures, etc
-| Clang |  | [8.0.0](http://llvm.org/releases/download.html) (C++17 support) |  |  |  |  |  |
+| Clang |  | [16.0.0](http://llvm.org/releases/download.html) (C++20 support, `<source_location>`) |  |  |  |  |  |
 | CMake |  | [3.13](https://cmake.org/download/) |  |  |  |  |  |
 | Expat | [2.2.7](https://libexpat.github.io/) |  | No | Yes |  |  |  |
 | fontconfig | [2.12.6](https://www.freedesktop.org/software/fontconfig/release/) |  | No | Yes |  |  |  |
 | FreeType | [2.7.1](http://download.savannah.gnu.org/releases/freetype) |  | No |  |  |  |  |
-| GCC |  | [8.3.0](https://gcc.gnu.org/) (C++17 support) |  |  |  |  |  |
+| GCC |  | [11.1.0](https://gcc.gnu.org/) (C++20 support, `<source_location>`) |  |  |  |  |  |
 | HarfBuzz-NG |  |  |  |  |  |  |  |
 | help2man |  |  |  |  |  | Manpages | Optional, used for building manpages |
 | jemalloc | [5.2.1](https://github.com/jemalloc/jemalloc/releases) |  |  |  |  |

@@ -8,6 +8,10 @@ define $(package)_set_vars
 $(package)_config_opts=--enable-cxx --disable-assembly --disable-shared --enable-static --with-pic
 endef
 
+define $(package)_preprocess_cmds
+  sed -i 's/cross_compiling=no/cross_compiling=yes/g' configure
+endef
+
 define $(package)_config_cmds
   $($(package)_autoconf)
 endef
