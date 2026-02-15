@@ -37,12 +37,12 @@ from queue import Queue, Empty
 # Formatting. Default colors to empty strings.
 BOLD, BLUE, RED, GREY = ("", ""), ("", ""), ("", ""), ("", "")
 try:
-    # Make sure python thinks it can write unicode to its stdout
-    "\u2713".encode("utf_8").decode(sys.stdout.encoding)
+    # Make sure python can actually write unicode to its stdout
+    "\u2713".encode(sys.stdout.encoding or 'ascii')
     TICK = "✓ "
     CROSS = "✖ "
     CIRCLE = "○ "
-except UnicodeDecodeError:
+except (UnicodeEncodeError, UnicodeDecodeError, LookupError):
     TICK = "P "
     CROSS = "x "
     CIRCLE = "o "
@@ -192,7 +192,7 @@ def main():
         help='stop execution after the first test failure')
     parser.add_argument('--junitoutput', '-J', default='junit_results.xml',
                         help="File that will store JUnit formatted test results. If no absolute path is given it is treated as relative to the temporary directory.")
-    parser.add_argument('--testsuitename', '-n', default='Bitcoin Cash Node functional tests',
+    parser.add_argument('--testsuitename', '-n', default='Vuhn Bitcoin Cash Node functional tests',
                         help="Name of the test suite, as it will appear in the logs and in the JUnit report.")
     args, unknown_args = parser.parse_known_args()
 
@@ -646,7 +646,7 @@ def check_script_prefixes(all_scripts):
     LEEWAY = 10
 
     good_prefixes_re = re.compile(
-        "(bchn[_-])?(example|feature|interface|mempool|mining|p2p|rpc|wallet|tool|ui)[_-]")
+        "(v?bchn[_-])?(example|feature|interface|mempool|mining|p2p|rpc|wallet|tool|ui)[_-]")
     bad_script_names = [
         script for script in all_scripts if good_prefixes_re.match(script) is None]
 

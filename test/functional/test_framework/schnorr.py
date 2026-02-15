@@ -12,9 +12,26 @@ import ctypes
 import ctypes.util
 import hashlib
 import hmac
+import os
 import threading
 
-ssl = ctypes.cdll.LoadLibrary(ctypes.util.find_library('ssl') or 'libeay32')
+
+def _find_openssl():
+    """Find OpenSSL shared library (libcrypto) for ctypes."""
+    for name in ('crypto', 'ssl'):
+        path = ctypes.util.find_library(name)
+        if path:
+            return path
+    if os.name == 'nt':
+        for name in ('libcrypto-3-x64', 'libssl-3-x64',
+                      'libcrypto-1_1-x64', 'libssl-1_1-x64'):
+            path = ctypes.util.find_library(name)
+            if path:
+                return path
+    return 'libeay32'
+
+
+ssl = ctypes.cdll.LoadLibrary(_find_openssl())
 
 ssl.BN_new.restype = ctypes.c_void_p
 ssl.BN_new.argtypes = []

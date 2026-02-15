@@ -9,7 +9,6 @@ Tests basic functionality of the getblocktemplatelight and submitblocklight RPC 
 """
 
 import os
-import platform
 import random
 import shutil
 import stat
@@ -380,7 +379,7 @@ class GBTLightTest(BitcoinTestFramework):
         # Final check -- check for proper RPC error when there is a problem writing out the job data file.
         # However, we can only do this simulated check on non-Windows, posix OS's, when we are not root.
         # Note that in most CI's we run as root, so this check will be skipped in CI.
-        if not platform.system().lower().startswith('win') and os.name == 'posix' and os.getuid() != 0:
+        if os.name == 'posix' and os.getuid() != 0:
             orig_mode = None
             try:
                 self.log.info("'simulated save failure' test will execute")

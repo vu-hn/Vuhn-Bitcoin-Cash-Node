@@ -8,6 +8,7 @@ import http.client
 import os
 import urllib.parse
 import subprocess
+import sys
 from random import SystemRandom
 import string
 import configparser
@@ -37,7 +38,11 @@ class HTTPBasicsTest(BitcoinTestFramework):
         config = configparser.ConfigParser()
         config.read_file(open(self.options.configfile, encoding='utf-8'))
         gen_rpcauth = config['environment']['RPCAUTH']
-        p = subprocess.Popen([gen_rpcauth, self.user],
+        # On Windows, .py files can't be executed directly; invoke via Python
+        cmd = [gen_rpcauth, self.user]
+        if os.name == 'nt':
+            cmd = [sys.executable, gen_rpcauth, self.user]
+        p = subprocess.Popen(cmd,
                              stdout=subprocess.PIPE, universal_newlines=True)
         lines = p.stdout.read().splitlines()
         rpcauth3 = lines[1]
