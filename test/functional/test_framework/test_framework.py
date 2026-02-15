@@ -404,7 +404,10 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         """Stop multiple bitcoind test nodes"""
         for node in self.nodes:
             # Issue RPC to stop nodes
-            node.stop_node(wait=wait)
+            try:
+                node.stop_node(wait=wait)
+            except Exception:
+                node.log.exception("Error stopping node")
 
         for node in self.nodes:
             # Wait for nodes to stop

@@ -128,6 +128,15 @@ class TestCase():
         [stdout, stderr] = [log.read().decode('utf-8')
                             for log in (log_stdout, log_stderr)]
         log_stdout.close(), log_stderr.close()
+        # On Windows, Python 3.13+ asyncio IOCP can emit harmless warnings
+        # to stderr about destroyed pending tasks. Filter these out so they
+        # don't cause a test that otherwise passed to be marked as failed.
+        if os.name == 'nt' and stderr:
+            stderr = '\n'.join(
+                line for line in stderr.splitlines()
+                if 'Task was destroyed but it is pending' not in line
+                and 'IocpProactor' not in line
+            ).strip()
         if process.returncode == TEST_EXIT_PASSED and stderr == "":
             status = "Passed"
         elif process.returncode == TEST_EXIT_SKIPPED:
