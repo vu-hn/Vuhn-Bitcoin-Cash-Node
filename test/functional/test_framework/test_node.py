@@ -337,6 +337,9 @@ class TestNode():
             raise AssertionError(
                 "Unexpected stderr {} != {}".format(stderr, expected_stderr))
 
+        self.stdout.close()
+        self.stderr.close()
+
         del self.p2ps[:]
 
     def is_node_stopped(self):
