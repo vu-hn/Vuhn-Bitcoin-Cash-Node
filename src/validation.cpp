@@ -4027,7 +4027,8 @@ bool ProcessNewBlockHeaders(const Config &config,
                 const double chainHeightGuess = pindex->nHeight + nTimeDiff / double(config.GetChainParams()
                                                                                      .GetConsensus().nPowTargetSpacing);
                 const double percentProg = pindex->nHeight / chainHeightGuess * 100.0;
-                LogPrintf("Synchronizing headers, height: %d, progress: %.1f%%\n", pindex->nHeight, percentProg);
+                LogPrintf("Synchronizing headers, height: %d, date: %s, progress: %.1f%%\n",
+                         pindex->nHeight, FormatISO8601DateTime(pindex->GetBlockTime()), percentProg);
             }
         }
     }
