@@ -2237,14 +2237,15 @@ static void UpdateTip(const Config &config, CBlockIndex *pindexNew)
     }
 
     // Note that we disable log rate limiting for this message, so this source location always logs during IBD.
+    const double progressFloat = GuessVerificationProgress(params.TxData(), pindexNew);
     LogPrintfNoRateLimit("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%u date='%s' progress=%f"
-                         " cache=%.1fMiB(%utxo)\n",
+                         " progress=%.2f%% cache=%.1fMiB(%utxo)\n",
                          __func__, pindexNew->GetBlockHash().ToString(),
                          pindexNew->nHeight, pindexNew->nVersion,
                          log(pindexNew->nChainWork.getdouble()) / log(2.0),
                          pindexNew->GetChainTxCount(),
                          FormatISO8601DateTime(pindexNew->GetBlockTime()),
-                         GuessVerificationProgress(params.TxData(), pindexNew),
+                         progressFloat, progressFloat * 100.0,
                          pcoinsTip->DynamicMemoryUsage() * (1.0 / (1 << 20)),
                          pcoinsTip->GetCacheSize());
 }
